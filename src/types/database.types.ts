@@ -25,7 +25,7 @@ export type MovementType =
   | "adjustment_out"
   | "void";
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       branches: {
@@ -59,6 +59,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       locations: {
         Row: {
@@ -91,6 +92,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -129,6 +131,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       items: {
         Row: {
@@ -170,6 +173,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       serial_units: {
         Row: {
@@ -205,6 +209,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       document_sequences: {
         Row: {
@@ -231,6 +236,7 @@ export interface Database {
           current_number?: number;
           updated_at?: string;
         };
+        Relationships: [];
       };
       documents: {
         Row: {
@@ -296,6 +302,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       document_lines: {
         Row: {
@@ -331,6 +338,7 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       stock_movements: {
         Row: {
@@ -357,7 +365,19 @@ export interface Database {
           created_by: string;
           created_at?: string;
         };
-        Update: never; // Immutable
+        Update: {
+          id?: string;
+          document_id?: string;
+          document_line_id?: string | null;
+          item_id?: string;
+          location_id?: string;
+          serial_unit_id?: string | null;
+          quantity?: number;
+          movement_type?: MovementType;
+          created_by?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       stock_balances: {
         Row: {
@@ -381,6 +401,7 @@ export interface Database {
           quantity?: number;
           updated_at?: string;
         };
+        Relationships: [];
       };
       material_requests: {
         Row: {
@@ -434,6 +455,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       audit_log: {
         Row: {
@@ -456,7 +478,17 @@ export interface Database {
           new_data?: Json | null;
           created_at?: string;
         };
-        Update: never;
+        Update: {
+          id?: string;
+          table_name?: string;
+          record_id?: string;
+          action?: string;
+          actor_id?: string | null;
+          old_data?: Json | null;
+          new_data?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {
@@ -542,6 +574,9 @@ export interface Database {
       request_status: RequestStatus;
       serial_status: SerialStatus;
       movement_type: MovementType;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 }
