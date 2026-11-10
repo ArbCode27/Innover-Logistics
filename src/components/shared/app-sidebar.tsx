@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Boxes,
+  Camera,
   Truck,
   PackageCheck,
   Users,
@@ -37,6 +38,13 @@ const NAV_ITEMS: NavItem[] = [
     href: "/inventario",
     icon: Boxes,
     roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
+  },
+  {
+    title: "Registro con Teléfono",
+    href: "/inventario/registro-remoto",
+    icon: Camera,
+    roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
+    badge: "QR",
   },
   {
     title: "Recepción de Guías",

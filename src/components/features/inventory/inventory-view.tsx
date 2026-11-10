@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Boxes,
+  Camera,
   Cpu,
   Flame,
   PlusCircle,
@@ -114,8 +115,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" className="gap-1.5 shadow-sm bg-primary text-primary-foreground hover:bg-primary/90">
+            <Link href="/inventario/registro-remoto">
+              <Camera className="h-4 w-4" aria-hidden="true" />
+              Registro con Teléfono
+            </Link>
+          </Button>
+
           {["superadmin", "admin_sucursal"].includes(userRole) && (
-            <Button asChild size="sm" className="gap-1.5 shadow-sm">
+            <Button asChild variant="outline" size="sm" className="gap-1.5 shadow-sm">
               <Link href="/guias/enviar">
                 <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
                 Emitir Traslado
@@ -294,23 +302,39 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     {item.sku}
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-foreground">
-                      {item.name}
-                    </div>
-                    {item.description && (
-                      <div className="text-xs text-muted-foreground line-clamp-1">
-                        {item.description}
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded border bg-muted/40 overflow-hidden flex items-center justify-center flex-shrink-0">
+                        {item.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Boxes className="h-5 w-5 text-muted-foreground/40" />
+                        )}
                       </div>
-                    )}
-                    {item.is_serialized && (
-                      <Badge
-                        variant="secondary"
-                        className="mt-1 text-[10px] gap-1"
-                      >
-                        <Cpu className="h-3 w-3" />
-                        Serial / MAC individual
-                      </Badge>
-                    )}
+                      <div>
+                        <div className="font-medium text-foreground">
+                          {item.name}
+                        </div>
+                        {item.description && (
+                          <div className="text-xs text-muted-foreground line-clamp-1">
+                            {item.description}
+                          </div>
+                        )}
+                        {item.is_serialized && (
+                          <Badge
+                            variant="secondary"
+                            className="mt-1 text-[10px] gap-1"
+                          >
+                            <Cpu className="h-3 w-3" />
+                            Serial / MAC individual
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
                     {item.category}

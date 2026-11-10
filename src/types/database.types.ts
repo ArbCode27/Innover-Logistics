@@ -143,6 +143,7 @@ export type Database = {
           unit: UnitOfMeasure;
           is_serialized: boolean;
           min_stock: number;
+          image_url: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -156,6 +157,7 @@ export type Database = {
           unit: UnitOfMeasure;
           is_serialized?: boolean;
           min_stock?: number;
+          image_url?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -169,6 +171,7 @@ export type Database = {
           unit?: UnitOfMeasure;
           is_serialized?: boolean;
           min_stock?: number;
+          image_url?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -490,6 +493,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      scan_sessions: {
+        Row: {
+          id: string;
+          session_token: string;
+          created_by: string;
+          branch_id: string;
+          default_location_id: string;
+          status: "waiting_device" | "connected" | "scanning" | "closed" | "expired";
+          device_info: Json;
+          last_activity: string;
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_token: string;
+          created_by: string;
+          branch_id: string;
+          default_location_id: string;
+          status?: "waiting_device" | "connected" | "scanning" | "closed" | "expired";
+          device_info?: Json;
+          last_activity?: string;
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_token?: string;
+          created_by?: string;
+          branch_id?: string;
+          default_location_id?: string;
+          status?: "waiting_device" | "connected" | "scanning" | "closed" | "expired";
+          device_info?: Json;
+          last_activity?: string;
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -562,6 +607,24 @@ export type Database = {
         Returns: {
           success: boolean;
           status: string;
+        };
+      };
+      rpc_register_purchase: {
+        Args: {
+          p_location_id: string;
+          p_item_id: string;
+          p_quantity: number;
+          p_serial_number?: string | null;
+          p_mac_address?: string | null;
+          p_ticket_ref?: string | null;
+          p_supplier_notes?: string | null;
+          p_image_url?: string | null;
+        };
+        Returns: {
+          success: boolean;
+          document_id: string;
+          document_number: string;
+          serial_unit_id?: string | null;
         };
       };
     };
