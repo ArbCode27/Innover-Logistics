@@ -4,8 +4,10 @@ import { IssueTransferForm } from "@/components/features/transfers/issue-transfe
 
 export default async function IssueTransferPage() {
   const profile = await getCurrentProfile();
-  const locations = await getLocations();
-  const items = await getItemsCatalog();
+  const [locations, items] = await Promise.all([
+    getLocations(),
+    getItemsCatalog(),
+  ]);
 
   const userWarehouse = locations.find(
     (l) => l.branch_id === profile?.branch_id && l.type === "branch"

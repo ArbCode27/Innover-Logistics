@@ -5,9 +5,11 @@ import { RequestsManagementView } from "@/components/features/requests/requests-
 
 export default async function RequestsPage() {
   const profile = await getCurrentProfile();
-  const requests = await getRequestsList(profile?.branch_id || undefined);
-  const items = await getItemsCatalog();
-  const locations = await getLocations(profile?.branch_id || undefined);
+  const [requests, items, locations] = await Promise.all([
+    getRequestsList(profile?.branch_id || undefined),
+    getItemsCatalog(),
+    getLocations(profile?.branch_id || undefined),
+  ]);
 
   const crews = locations.filter((l) => l.type === "crew");
 

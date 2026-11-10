@@ -331,12 +331,29 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
       ctx.drawImage(video, 0, 0, width, height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
 
-      // Avisar a la PC inmediatamente vía Realtime WebSocket
+      // Crear miniatura optimizada para transmisión instantánea por WebSocket (<50KB)
+      let previewDataUrl = dataUrl;
+      try {
+        const previewCanvas = document.createElement("canvas");
+        const previewWidth = 800;
+        const previewHeight = Math.round((height * previewWidth) / width);
+        previewCanvas.width = previewWidth;
+        previewCanvas.height = previewHeight;
+        const pCtx = previewCanvas.getContext("2d");
+        if (pCtx) {
+          pCtx.drawImage(canvas, 0, 0, previewWidth, previewHeight);
+          previewDataUrl = previewCanvas.toDataURL("image/jpeg", 0.72);
+        }
+      } catch {
+        // Fallback al dataUrl original
+      }
+
+      // Avisar a la PC inmediatamente vía Realtime WebSocket con la foto para que aparezca al instante
       if (channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
           event: "capture_received",
-          payload: { timestamp: Date.now() },
+          payload: { timestamp: Date.now(), imageUrl: previewDataUrl },
         });
       }
 
@@ -364,7 +381,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
             event: "scan_analyzed",
             payload: {
               data: result.data,
-              imageUrl: dataUrl,
+              imageUrl: previewDataUrl,
             },
           });
         }
@@ -379,6 +396,28 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
           navigator.vibrate([50, 40, 50]);
         }
       } else {
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "scan_analyzed",
+            payload: {
+              data: {
+                brand: null,
+                model: null,
+                serial_number: null,
+                mac_address: null,
+                suggested_sku: null,
+                suggested_name: null,
+                category: "Equipos Activos",
+                unit: "unidades",
+                is_serialized: true,
+                confidence: 0,
+                is_new_catalog_item: false,
+              },
+              imageUrl: previewDataUrl,
+            },
+          });
+        }
         setStatusMessage(
           "Imagen enviada a la PC. Verifica los datos en la pantalla de la PC."
         );

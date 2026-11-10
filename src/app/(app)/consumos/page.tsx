@@ -5,13 +5,15 @@ import { FieldConsumptionForm } from "@/components/features/consumptions/field-c
 
 export default async function ConsumptionsPage() {
   const profile = await getCurrentProfile();
-  const locations = await getLocations(profile?.branch_id || undefined);
-  const items = await getItemsCatalog();
-  const consumptions = await getConsumptionsList(
-    profile?.branch_id || undefined,
-    profile?.crew_id || undefined
-  );
-  const serializedUnits = await getSerializedUnits();
+  const [locations, items, consumptions, serializedUnits] = await Promise.all([
+    getLocations(profile?.branch_id || undefined),
+    getItemsCatalog(),
+    getConsumptionsList(
+      profile?.branch_id || undefined,
+      profile?.crew_id || undefined
+    ),
+    getSerializedUnits(),
+  ]);
 
   const crewLocations = locations.filter((l) => l.type === "crew");
 

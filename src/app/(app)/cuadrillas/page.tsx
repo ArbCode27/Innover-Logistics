@@ -5,8 +5,10 @@ import { CrewsManagementView } from "@/components/features/crews/crews-managemen
 
 export default async function CrewsPage() {
   const profile = await getCurrentProfile();
-  const locations = await getLocations(profile?.branch_id || undefined);
-  const items = await getItemsCatalog();
+  const [locations, items] = await Promise.all([
+    getLocations(profile?.branch_id || undefined),
+    getItemsCatalog(),
+  ]);
 
   const crews = locations.filter((l) => l.type === "crew");
   const warehouses = locations.filter((l) => l.type === "branch");

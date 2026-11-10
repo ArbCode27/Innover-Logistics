@@ -3,8 +3,10 @@ import { getMovementsLedger } from "@/actions/history";
 import { HistoryLedgerView } from "@/components/features/history/history-ledger-view";
 
 export default async function HistoryPage() {
-  const profile = await getCurrentProfile();
-  const movements = await getMovementsLedger();
+  const [profile, movements] = await Promise.all([
+    getCurrentProfile(),
+    getMovementsLedger(),
+  ]);
 
   return (
     <HistoryLedgerView

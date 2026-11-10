@@ -151,6 +151,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ role }) => {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
                   onClick={handleCloseMobile}
                   className={cn(
                     "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px]",

@@ -22,10 +22,20 @@ export const updateSession = async (request: NextRequest): Promise<NextResponse>
     return supabaseResponse;
   }
 
+  const allCookies = request.cookies.getAll();
+  const hasAuthToken = allCookies.some(
+    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")
+  );
+
+  // Si no hay cookies de sesión de Supabase (o está en modo demo), omitimos la llamada de red bloqueante
+  if (!hasAuthToken) {
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
-        return request.cookies.getAll();
+        return allCookies;
       },
       setAll(cookiesToSet: CookieToSet[]) {
         cookiesToSet.forEach(({ name, value }) =>

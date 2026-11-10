@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema, type LoginInput } from "@/lib/validators/auth";
 import type { Profile } from "@/types/inventory";
@@ -156,32 +157,38 @@ export const logoutAction = async (): Promise<void> => {
   redirect("/login");
 };
 
-export const getCurrentProfile = async (): Promise<Profile | null> => {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { data: profile } = (await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single()) as { data: Profile | null; error: any };
-
-      if (profile) return profile as Profile;
-    }
-  } catch {
-    // Fall back to demo cookie
-  }
-
+export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const cookieStore = await cookies();
   const demoEmail = cookieStore.get("demo_user_email")?.value;
   if (demoEmail && DEMO_PROFILES[demoEmail]) {
     return DEMO_PROFILES[demoEmail];
   }
 
+  const hasAuthToken = cookieStore
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
+
+  if (hasAuthToken) {
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = (await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()) as { data: Profile | null; error: any };
+
+        if (profile) return profile as Profile;
+      }
+    } catch {
+      // Fall back to demo cookie
+    }
+  }
+
   // Default demo user for seamless UX if no session exists
   return DEMO_PROFILES["superadmin@tvstar.com"];
-};
+});

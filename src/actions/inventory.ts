@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
 import type {
@@ -184,7 +185,7 @@ const FALLBACK_ITEMS: Item[] = [
   },
 ];
 
-export const getBranches = async (): Promise<Branch[]> => {
+export const getBranches = cache(async (): Promise<Branch[]> => {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -196,9 +197,9 @@ export const getBranches = async (): Promise<Branch[]> => {
     // Return fallback
   }
   return FALLBACK_BRANCHES;
-};
+});
 
-export const getLocations = async (branchId?: string): Promise<Location[]> => {
+export const getLocations = cache(async (branchId?: string): Promise<Location[]> => {
   try {
     const supabase = await createClient();
     let query = supabase.from("locations").select("*").eq("is_active", true);
@@ -213,9 +214,9 @@ export const getLocations = async (branchId?: string): Promise<Location[]> => {
   return branchId
     ? FALLBACK_LOCATIONS.filter((l) => l.branch_id === branchId)
     : FALLBACK_LOCATIONS;
-};
+});
 
-export const getItemsCatalog = async (): Promise<Item[]> => {
+export const getItemsCatalog = cache(async (): Promise<Item[]> => {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -228,15 +229,17 @@ export const getItemsCatalog = async (): Promise<Item[]> => {
     // Return fallback
   }
   return FALLBACK_ITEMS;
-};
+});
 
 export const getInventoryStock = async (
   targetLocationId?: string
 ): Promise<StockItemWithBalance[]> => {
-  const profile = await getCurrentProfile();
-  const branches = await getBranches();
-  const locations = await getLocations();
-  const items = await getItemsCatalog();
+  const [profile, branches, locations, items] = await Promise.all([
+    getCurrentProfile(),
+    getBranches(),
+    getLocations(),
+    getItemsCatalog(),
+  ]);
 
   // Determine effective location
   let locationId = targetLocationId;
@@ -310,8 +313,10 @@ export const getInventoryStock = async (
 export const getSerializedUnits = async (
   locationId?: string
 ): Promise<SerializedItemWithDetails[]> => {
-  const items = await getItemsCatalog();
-  const locations = await getLocations();
+  const [items, locations] = await Promise.all([
+    getItemsCatalog(),
+    getLocations(),
+  ]);
 
   try {
     const supabase = await createClient();

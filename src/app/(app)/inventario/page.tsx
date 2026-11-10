@@ -8,9 +8,11 @@ import { InventoryView } from "@/components/features/inventory/inventory-view";
 
 export default async function InventoryPage() {
   const profile = await getCurrentProfile();
-  const initialStock = await getInventoryStock();
-  const locations = await getLocations(profile?.branch_id || undefined);
-  const serializedUnits = await getSerializedUnits();
+  const [initialStock, locations, serializedUnits] = await Promise.all([
+    getInventoryStock(),
+    getLocations(profile?.branch_id || undefined),
+    getSerializedUnits(),
+  ]);
 
   return (
     <InventoryView

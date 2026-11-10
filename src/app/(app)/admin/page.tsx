@@ -10,8 +10,10 @@ export default async function AdminPage() {
     redirect("/inventario");
   }
 
-  const branches = await getBranches();
-  const items = await getItemsCatalog();
+  const [branches, items] = await Promise.all([
+    getBranches(),
+    getItemsCatalog(),
+  ]);
 
   return <AdminManagementView branches={branches} items={items} />;
 }

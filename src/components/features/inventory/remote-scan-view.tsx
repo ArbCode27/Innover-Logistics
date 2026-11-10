@@ -85,6 +85,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
   const [session, setSession] = React.useState<ScanSession>(initialSession);
   const [qrCodeUrl, setQrCodeUrl] = React.useState<string>("");
   const [isConnected, setIsConnected] = React.useState<boolean>(false);
+  const [forceShowQr, setForceShowQr] = React.useState<boolean>(false);
   const [isProcessingCapture, setIsProcessingCapture] =
     React.useState<boolean>(false);
 
@@ -241,10 +242,14 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         setIsConnected(true);
         toast.success("Teléfono vinculado exitosamente a la sesión");
       })
-      .on("broadcast", { event: "capture_received" }, () => {
+      .on("broadcast", { event: "capture_received" }, (payload) => {
+        setIsConnected(true);
         setIsProcessingCapture(true);
+        const img: string = payload.payload?.imageUrl;
+        if (img) setCapturedImage(img);
       })
       .on("broadcast", { event: "scan_analyzed" }, (payload) => {
+        setIsConnected(true);
         setIsProcessingCapture(false);
         const data: ExtractedLabelData = payload.payload?.data;
         const img: string = payload.payload?.imageUrl;
@@ -272,6 +277,30 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       supabase.removeChannel(channel);
     };
   }, [session.session_token, playScanBeep]);
+
+  // Polling de respaldo para asegurar vinculación instantánea incluso si el broadcast inicial se perdió
+  React.useEffect(() => {
+    if (isConnected) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/scan/session/${session.session_token}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (
+            data.session?.status === "connected" ||
+            data.session?.status === "scanning"
+          ) {
+            setIsConnected(true);
+          }
+        }
+      } catch {
+        // Fallback silencioso
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isConnected, session.session_token]);
 
   // Copiar enlace al portapapeles
   const handleCopyLink = () => {
@@ -440,10 +469,25 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Panel izquierdo: QR de emparejamiento y Vista previa de captura */}
         <div className="lg:col-span-5 space-y-6">
-          {!isConnected ? (
+          {!isConnected && !capturedImage || forceShowQr ? (
             /* Tarjeta de Código QR */
             <Card className="border-primary/20 shadow-sm">
               <CardHeader className="text-center pb-2">
+                {isConnected && (
+                  <div className="flex items-center justify-between p-2 mb-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                      <Wifi className="h-3.5 w-3.5 animate-pulse" /> Teléfono vinculado
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setForceShowQr(false)}
+                      className="h-7 text-xs gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                    >
+                      <Camera className="h-3.5 w-3.5" /> Ver Cámara
+                    </Button>
+                  </div>
+                )}
                 <CardTitle className="text-lg flex items-center justify-center gap-2">
                   <QrCode className="h-5 w-5 text-primary" />
                   <span>Vincular Cámara del Teléfono</span>
@@ -491,51 +535,106 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
               </CardContent>
               <CardFooter className="bg-muted/40 p-3 text-xs text-muted-foreground rounded-b-xl flex justify-between items-center">
                 <span>Operador: {userName}</span>
-                <span className="font-mono text-[11px]">Válido por 4 horas</span>
+                {isConnected ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setForceShowQr(false)}
+                    className="h-7 text-xs text-primary gap-1"
+                  >
+                    <Camera className="h-3.5 w-3.5" /> Volver a Captura
+                  </Button>
+                ) : (
+                  <span className="font-mono text-[11px]">Válido por 4 horas</span>
+                )}
               </CardFooter>
             </Card>
           ) : (
-            /* Tarjeta de Visor del Teléfono Activo */
+            /* Tarjeta de Visor del Teléfono Activo (Sustituye el espacio del QR) */
             <Card className="border-emerald-500/30 shadow-sm">
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Camera className="h-4 w-4 text-emerald-500" />
-                    <span>Captura en Vivo</span>
+                    <span>Cámara del Teléfono Vinculada</span>
                   </CardTitle>
                   <CardDescription>
                     {isProcessingCapture
                       ? "Procesando lectura óptica de la etiqueta..."
+                      : capturedImage
+                      ? "Última etiqueta capturada desde el móvil"
                       : "Esperando captura desde el teléfono"}
                   </CardDescription>
                 </div>
-                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs">
-                  Listo
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    En línea
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setForceShowQr(true)}
+                    className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-foreground"
+                    title="Ver código QR de vinculación"
+                  >
+                    <QrCode className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Ver QR</span>
+                  </Button>
+                </div>
               </CardHeader>
 
               <CardContent className="space-y-4">
-                <div className="relative aspect-video rounded-lg overflow-hidden bg-zinc-950 border flex items-center justify-center">
+                {/* Espacio donde estaba el QR: ahora muestra la imagen en vivo / tomada */}
+                <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center shadow-inner">
                   {capturedImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={capturedImage}
-                      alt="Última captura"
-                      className="w-full h-full object-contain"
-                    />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={capturedImage}
+                        alt="Última etiqueta capturada"
+                        className="w-full h-full object-contain"
+                      />
+                      <div className="absolute top-2 left-2 z-10">
+                        <Badge className="bg-black/75 backdrop-blur-md text-white border-white/20 text-[11px] gap-1 shadow">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                          Foto Capturada
+                        </Badge>
+                      </div>
+                    </>
                   ) : (
-                    <div className="text-center p-6 text-zinc-500 space-y-2">
-                      <Camera className="h-10 w-10 mx-auto opacity-40 animate-pulse" />
-                      <p className="text-xs">
-                        Presiona &quot;Capturar Etiqueta&quot; en el teléfono para iniciar
-                      </p>
+                    <div className="text-center p-6 text-zinc-400 space-y-3 flex flex-col items-center justify-center h-full">
+                      <div className="relative">
+                        <div className="h-16 w-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                          <Camera className="h-8 w-8 animate-pulse" />
+                        </div>
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 text-[9px] text-white font-bold items-center justify-center">
+                            ✓
+                          </span>
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-white">
+                          Cámara vinculada y lista
+                        </p>
+                        <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+                          Apunta la cámara del móvil a la etiqueta del equipo y pulsa &quot;Capturar Etiqueta&quot; en el teléfono.
+                        </p>
+                      </div>
                     </div>
                   )}
 
                   {isProcessingCapture && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-2">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-2 z-20">
                       <RefreshCw className="h-8 w-8 animate-spin text-emerald-400" />
-                      <span className="text-xs font-medium">Extrayendo datos de etiqueta...</span>
+                      <span className="text-xs font-semibold tracking-wide">
+                        Extrayendo Serial y MAC con IA...
+                      </span>
                     </div>
                   )}
                 </div>
@@ -586,6 +685,18 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   </div>
                 </div>
               </CardContent>
+
+              <CardFooter className="bg-muted/40 p-3 text-xs text-muted-foreground rounded-b-xl flex justify-between items-center">
+                <span>Operador: {userName}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setForceShowQr(true)}
+                  className="h-7 text-xs gap-1"
+                >
+                  <QrCode className="h-3 w-3" /> Ver Código QR
+                </Button>
+              </CardFooter>
             </Card>
           )}
 
