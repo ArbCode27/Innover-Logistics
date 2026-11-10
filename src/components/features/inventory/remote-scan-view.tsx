@@ -162,47 +162,6 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     }
   }, []);
 
-  // Suscripción al canal de Supabase Realtime
-  React.useEffect(() => {
-    const supabase = createClient();
-    const channelName = `scan-session:${session.session_token}`;
-
-    const channel = supabase.channel(channelName, {
-      config: { broadcast: { self: false } },
-    });
-
-    channel
-      .on("broadcast", { event: "device_connected" }, () => {
-        setIsConnected(true);
-        toast.success("Teléfono vinculado exitosamente a la sesión");
-      })
-      .on("broadcast", { event: "capture_received" }, () => {
-        setIsProcessingCapture(true);
-      })
-      .on("broadcast", { event: "scan_analyzed" }, (payload) => {
-        setIsProcessingCapture(false);
-        const data: ExtractedLabelData = payload.payload?.data;
-        const img: string = payload.payload?.imageUrl;
-
-        if (img) setCapturedImage(img);
-        if (data) {
-          handleApplyExtractedData(data, img);
-          playScanBeep();
-        }
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          // Canal listo
-        }
-      });
-
-    channelRef.current = channel;
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [session.session_token, playScanBeep]);
-
   // Aplicar datos extraídos por la lectura óptica
   const handleApplyExtractedData = (
     data: ExtractedLabelData,
@@ -262,6 +221,57 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       });
     }
   };
+
+  const handleApplyRef = React.useRef(handleApplyExtractedData);
+  React.useEffect(() => {
+    handleApplyRef.current = handleApplyExtractedData;
+  });
+
+  // Suscripción al canal de Supabase Realtime
+  React.useEffect(() => {
+    const supabase = createClient();
+    const channelName = `scan-session:${session.session_token}`;
+
+    const channel = supabase.channel(channelName, {
+      config: { broadcast: { self: false } },
+    });
+
+    channel
+      .on("broadcast", { event: "device_connected" }, () => {
+        setIsConnected(true);
+        toast.success("Teléfono vinculado exitosamente a la sesión");
+      })
+      .on("broadcast", { event: "capture_received" }, () => {
+        setIsProcessingCapture(true);
+      })
+      .on("broadcast", { event: "scan_analyzed" }, (payload) => {
+        setIsProcessingCapture(false);
+        const data: ExtractedLabelData = payload.payload?.data;
+        const img: string = payload.payload?.imageUrl;
+
+        if (img) setCapturedImage(img);
+        if (data) {
+          handleApplyRef.current(data, img);
+          playScanBeep();
+        }
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Preguntar si el teléfono ya está conectado
+          channel.send({
+            type: "broadcast",
+            event: "pc_ping",
+            payload: { timestamp: Date.now() },
+          });
+        }
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session.session_token, playScanBeep]);
 
   // Copiar enlace al portapapeles
   const handleCopyLink = () => {

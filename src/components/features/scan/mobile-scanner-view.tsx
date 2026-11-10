@@ -27,12 +27,14 @@ interface MobileScannerViewProps {
 
 export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
   token,
-  initialSession,
+  initialSession: _initialSession,
   locationName,
   userName,
 }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const channelRef = React.useRef<any>(null);
 
   const [stream, setStream] = React.useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = React.useState<string | null>(null);
@@ -47,38 +49,44 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
   const [lastSavedSerial, setLastSavedSerial] = React.useState<string | null>(
     null
   );
-  const [offlineQueue, setOfflineQueue] = React.useState<string[]>([]);
-  const [detectedBarcodes, setDetectedBarcodes] = React.useState<string[]>([]);
 
-  const wakeLockRef = React.useRef<any>(null);
-  const channelRef = React.useRef<any>(null);
-
-  // 1. Activar Wake Lock API para evitar suspensión de pantalla durante jornadas continuas
-  const requestWakeLock = React.useCallback(async () => {
-    if (typeof window !== "undefined" && "wakeLock" in navigator) {
-      try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request(
-          "screen"
-        );
-        setWakeLockActive(true);
-        wakeLockRef.current.addEventListener("release", () => {
-          setWakeLockActive(false);
-        });
-      } catch (err) {
-        console.warn("[WakeLock] No se pudo activar Wake Lock:", err);
-      }
+  // 1. Detener pistas de la cámara activas
+  const stopStream = React.useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // Ignorar error al detener pista
+        }
+      });
+      streamRef.current = null;
     }
+    setStream(null);
+    setHasTorch(false);
+    setTorchOn(false);
   }, []);
 
-  // 2. Iniciar cámara trasera por defecto
+  // 2. Iniciar cámara trasera con resolución progresiva y captura de errores
   const handleStartCamera = React.useCallback(async () => {
     setCameraError(null);
-    try {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+    stopStream();
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setCameraError(
+        "Tu navegador no soporta acceso a la cámara o la página no está servida sobre HTTPS."
+      );
+      return;
+    }
+
+    let mediaStream: MediaStream | null = null;
+
+    // Intento 1: Cámara trasera en alta definición
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
           width: { ideal: 1920 },
@@ -86,28 +94,116 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
         },
         audio: false,
       });
-
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+    } catch {
+      // Intento 2: Cámara trasera con resolución estándar
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+      } catch {
+        // Intento 3: Cualquier cámara disponible
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } catch (err: any) {
+          console.error("[Cámara] Error al solicitar cámara:", err);
+          setCameraError(
+            "No se pudo acceder a la cámara. Asegúrate de otorgar permisos de cámara en tu navegador móvil (se requiere conexión HTTPS en dispositivos remotos)."
+          );
+          return;
+        }
       }
+    }
 
-      // Detectar capacidad de linterna / flash
+    if (mediaStream) {
+      streamRef.current = mediaStream;
+      setStream(mediaStream);
+
       const track = mediaStream.getVideoTracks()[0];
-      const capabilities = (track.getCapabilities?.() as any) || {};
+      const capabilities = (track?.getCapabilities?.() as any) || {};
       if (capabilities.torch) {
         setHasTorch(true);
       }
-    } catch (err: any) {
-      console.error("[Cámara] Error al solicitar cámara:", err);
-      setCameraError(
-        "No se pudo acceder a la cámara trasera. Asegúrate de permitir los permisos en tu navegador."
-      );
     }
+  }, [stopStream]);
+
+  // 3. Montar cámara una única vez al iniciar el componente
+  React.useEffect(() => {
+    handleStartCamera();
+    return () => {
+      stopStream();
+    };
+  }, [handleStartCamera, stopStream]);
+
+  // 4. Vincular el flujo de video al elemento <video> del DOM de forma robusta
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+
+    const playVideo = async () => {
+      try {
+        await video.play();
+      } catch (err) {
+        console.warn("[Video] Auto-play retrasado esperando interacción:", err);
+      }
+    };
+
+    video.onloadedmetadata = () => {
+      playVideo();
+    };
+
+    playVideo();
   }, [stream]);
 
-  // 3. Conexión a Supabase Realtime Broadcast con la PC
+  // 5. Wake Lock API en ciclo de vida independiente para mantener la pantalla activa
   React.useEffect(() => {
+    let wakeLockInstance: any = null;
+
+    const acquireWakeLock = async () => {
+      if (typeof window !== "undefined" && "wakeLock" in navigator) {
+        try {
+          wakeLockInstance = await (navigator as any).wakeLock.request("screen");
+          setWakeLockActive(true);
+          wakeLockInstance.addEventListener("release", () => {
+            setWakeLockActive(false);
+          });
+        } catch (err) {
+          console.warn("[WakeLock] No se pudo activar Wake Lock:", err);
+        }
+      }
+    };
+
+    acquireWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        acquireWakeLock();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (wakeLockInstance) {
+        try {
+          wakeLockInstance.release();
+        } catch {}
+      }
+    };
+  }, []);
+
+  // 6. Conexión estable a Supabase Realtime (aislada, dependiente únicamente de token)
+  React.useEffect(() => {
+    if (!token) return;
+
     const supabase = createClient();
     const channelName = `scan-session:${token}`;
 
@@ -117,12 +213,10 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
 
     channel
       .on("broadcast", { event: "scan_saved" }, (payload) => {
-        // La PC guardó exitosamente el registro
         const serial = payload.payload?.serial || "Equipo guardado";
         setLastSavedSerial(serial);
         setStatusMessage(`¡Guardado exitoso: ${serial}! Listo para el siguiente.`);
 
-        // Feedback háptico
         if (typeof window !== "undefined" && "vibrate" in navigator) {
           navigator.vibrate([80, 50, 80]);
         }
@@ -130,6 +224,17 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
         setTimeout(() => {
           setStatusMessage("Apunta al siguiente equipo");
         }, 3000);
+      })
+      .on("broadcast", { event: "pc_ping" }, () => {
+        setIsConnectedToPc(true);
+        channel.send({
+          type: "broadcast",
+          event: "device_connected",
+          payload: {
+            timestamp: Date.now(),
+            userAgent: navigator.userAgent,
+          },
+        });
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -145,7 +250,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
             },
           });
 
-          // Notificar vía API
+          // Actualizar estado en base de datos
           fetch(`/api/scan/session/${token}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -164,28 +269,11 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
 
     channelRef.current = channel;
 
-    // Iniciar cámara y wake lock
-    handleStartCamera();
-    requestWakeLock();
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        requestWakeLock();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release().catch(() => {});
-      }
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
       supabase.removeChannel(channel);
+      channelRef.current = null;
     };
-  }, [token, handleStartCamera, requestWakeLock]);
+  }, [token]);
 
   // Alternar linterna / flash
   const handleToggleTorch = async () => {
@@ -208,22 +296,26 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
   const handleCaptureFrame = async () => {
     if (!videoRef.current || isCapturing) return;
 
+    const video = videoRef.current;
+    if (!video.videoWidth || !video.videoHeight) {
+      setStatusMessage("La cámara se está inicializando, intente de nuevo en un segundo.");
+      return;
+    }
+
     setIsCapturing(true);
     setStatusMessage("Capturando y enviando a la PC...");
 
-    // Vibración corta de confirmación de disparo
     if (typeof window !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate(40);
     }
 
     try {
-      const video = videoRef.current;
       const canvas = canvasRef.current || document.createElement("canvas");
 
       // Escalar manteniendo proporción adecuada para OCR
       const maxWidth = 1600;
-      let width = video.videoWidth || 1280;
-      let height = video.videoHeight || 720;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
 
       if (width > maxWidth) {
         height = Math.round((height * maxWidth) / width);
@@ -234,12 +326,12 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
       canvas.height = height;
 
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("No se pudo obtener contexto 2D");
+      if (!ctx) throw new Error("No se pudo obtener contexto 2D del canvas");
 
       ctx.drawImage(video, 0, 0, width, height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
 
-      // Avisar a la PC inmediatamente vía WebSocket
+      // Avisar a la PC inmediatamente vía Realtime WebSocket
       if (channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
@@ -255,7 +347,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
         body: JSON.stringify({
           sessionId: token,
           image: dataUrl,
-          barcodes: detectedBarcodes,
+          barcodes: [],
         }),
       });
 
@@ -266,7 +358,6 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
       const result = await response.json();
 
       if (result.success && result.data) {
-        // Enviar evento analizado a la PC
         if (channelRef.current) {
           channelRef.current.send({
             type: "broadcast",
@@ -279,19 +370,22 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
         }
 
         const sn = result.data.serial_number || "Equipo";
-        const mac = result.data.mac_address ? ` | MAC: ${result.data.mac_address}` : "";
+        const mac = result.data.mac_address
+          ? ` | MAC: ${result.data.mac_address}`
+          : "";
         setStatusMessage(`Detectado: ${sn}${mac}. Revisando en PC...`);
 
         if (typeof window !== "undefined" && "vibrate" in navigator) {
           navigator.vibrate([50, 40, 50]);
         }
       } else {
-        setStatusMessage("Imagen procesada. Verifica los datos en la pantalla de la PC.");
+        setStatusMessage(
+          "Imagen enviada a la PC. Verifica los datos en la pantalla de la PC."
+        );
       }
     } catch (err: any) {
       console.error("[Captura] Error:", err);
-      setStatusMessage("Error al enviar. Se guardó en cola para reintentar.");
-      setOfflineQueue((prev) => [...prev, "capture-" + Date.now()]);
+      setStatusMessage("Error al procesar. Verifique la conexión a la red.");
     } finally {
       setIsCapturing(false);
     }
@@ -310,7 +404,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
           ) : (
             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 flex items-center gap-1.5 px-2.5 py-1 text-xs">
               <WifiOff className="h-3.5 w-3.5" />
-              <span>Conectando...</span>
+              <span>Esperando PC...</span>
             </Badge>
           )}
 
@@ -373,6 +467,9 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
               autoPlay
               playsInline
               muted
+              onLoadedMetadata={(e) => {
+                (e.currentTarget as HTMLVideoElement).play().catch(() => {});
+              }}
               className="absolute inset-0 w-full h-full object-cover"
             />
 
