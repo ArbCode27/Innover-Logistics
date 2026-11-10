@@ -23,7 +23,7 @@ const IN_MEMORY_SESSIONS = new Map<string, ScanSession>();
 const IN_MEMORY_CAPTURES = new Map<string, SessionCapture>();
 
 export const saveLatestCapture = async (
-  token: string,
+  tokenOrId: string,
   imageUrl: string,
   data: ExtractedLabelData
 ): Promise<void> => {
@@ -33,41 +33,46 @@ export const saveLatestCapture = async (
     timestamp: Date.now(),
   };
 
-  IN_MEMORY_CAPTURES.set(token, capture);
+  IN_MEMORY_CAPTURES.set(tokenOrId, capture);
 
   try {
     const supabase = await createClient();
-    await (supabase.from("scan_sessions") as any)
+    // Guardar en scan_sessions buscando por session_token o por id
+    const { error } = await (supabase.from("scan_sessions") as any)
       .update({
         device_info: {
           last_capture: capture,
         },
         last_activity: new Date().toISOString(),
       })
-      .eq("session_token", token);
+      .or(`session_token.eq.${tokenOrId},id.eq.${tokenOrId}`);
+
+    if (error) {
+      console.warn("[Scan Action] Aviso al guardar captura en DB:", error.message);
+    }
   } catch (err) {
     console.warn("[Scan Action] Error guardando última captura:", err);
   }
 };
 
 export const getLatestCapture = async (
-  token: string
+  tokenOrId: string
 ): Promise<SessionCapture | null> => {
-  const inMem = IN_MEMORY_CAPTURES.get(token);
+  const inMem = IN_MEMORY_CAPTURES.get(tokenOrId);
   if (inMem) return inMem;
 
   try {
     const supabase = await createClient();
     const { data } = await (supabase.from("scan_sessions") as any)
       .select("device_info")
-      .eq("session_token", token)
+      .or(`session_token.eq.${tokenOrId},id.eq.${tokenOrId}`)
       .single();
 
     if (data?.device_info?.last_capture) {
       return data.device_info.last_capture as SessionCapture;
     }
   } catch {
-    // Ignorar error
+    // Continuar si la consulta en DB no tiene registro
   }
 
   return null;

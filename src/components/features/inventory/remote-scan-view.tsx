@@ -233,7 +233,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
   // Suscripción al canal de Supabase Realtime
   React.useEffect(() => {
     const supabase = createClient();
-    const channelName = `scan-session:${session.session_token}`;
+    const syncId = session.id || session.session_token;
+    const channelName = `scan-sync:${syncId}`;
 
     const channel = supabase.channel(channelName, {
       config: { broadcast: { self: false } },
@@ -244,18 +245,20 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         setIsConnected(true);
         toast.success("Teléfono vinculado exitosamente a la sesión");
       })
-      .on("broadcast", { event: "capture_received" }, (payload) => {
+      .on("broadcast", { event: "capture_received" }, (payload: any) => {
         setIsConnected(true);
         setIsProcessingCapture(true);
-        const img: string = payload.payload?.imageUrl;
+        const dataPayload = payload.payload || payload;
+        const img: string = dataPayload?.imageUrl;
         if (img) setCapturedImage(img);
       })
-      .on("broadcast", { event: "scan_analyzed" }, (payload) => {
+      .on("broadcast", { event: "scan_analyzed" }, (payload: any) => {
         setIsConnected(true);
         setIsProcessingCapture(false);
-        const data: ExtractedLabelData = payload.payload?.data;
-        const img: string = payload.payload?.imageUrl;
-        const ts: number = payload.payload?.timestamp || Date.now();
+        const dataPayload = payload.payload || payload;
+        const data: ExtractedLabelData = dataPayload?.data;
+        const img: string = dataPayload?.imageUrl;
+        const ts: number = dataPayload?.timestamp || Date.now();
 
         lastCaptureTimeRef.current = ts;
         if (img) setCapturedImage(img);
@@ -280,7 +283,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session.session_token, playScanBeep]);
+  }, [session.id, session.session_token, playScanBeep]);
 
   // Polling de sincronización continua (vinculación y capturas)
   React.useEffect(() => {
@@ -318,7 +321,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       } catch {
         // Fallback silencioso
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(interval);
   }, [isConnected, session.session_token, playScanBeep]);

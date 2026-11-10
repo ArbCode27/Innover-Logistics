@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnalyzeResponse>> => {
   try {
     const body = await request.json();
-    const { sessionId, image, barcodes = [] } = body;
+    const { sessionId, image, previewUrl, barcodes = [] } = body;
 
     if (!sessionId || !image) {
       return NextResponse.json(
@@ -27,32 +27,47 @@ export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnaly
     // 2. Comprobación contra el catálogo existente en Supabase
     try {
       const supabase = await createClient();
+      let matchedItem: any = null;
 
-      // Búsqueda inteligente por SKU propuesto o por modelo
-      let query = supabase.from("items").select("*").eq("is_active", true);
+      // 2a. Intento 1: Coincidencia por SKU
+      if (extractedData.suggested_sku && extractedData.suggested_sku.length >= 3) {
+        const { data: bySku } = await supabase
+          .from("items")
+          .select("*")
+          .eq("is_active", true)
+          .ilike("sku", `%${extractedData.suggested_sku}%`)
+          .limit(1);
 
-      if (extractedData.suggested_sku) {
-        query = query.or(
-          `sku.ilike.%${extractedData.suggested_sku}%,name.ilike.%${extractedData.model || ""}%`
-        );
-      } else if (extractedData.model) {
-        query = query.ilike("name", `%${extractedData.model}%`);
+        if (bySku && (bySku as any[]).length > 0) {
+          matchedItem = (bySku as any[])[0];
+        }
       }
 
-      const { data: matchedItems } = await (query as any).limit(1);
+      // 2b. Intento 2: Coincidencia por modelo en el nombre si no hubo coincidencia por SKU
+      if (!matchedItem && extractedData.model && extractedData.model.trim().length >= 3) {
+        const { data: byModel } = await supabase
+          .from("items")
+          .select("*")
+          .eq("is_active", true)
+          .ilike("name", `%${extractedData.model.trim()}%`)
+          .limit(1);
 
-      if (matchedItems && (matchedItems as any[]).length > 0) {
-        const item = (matchedItems as any[])[0];
-        extractedData.matched_item_id = item.id;
+        if (byModel && (byModel as any[]).length > 0) {
+          matchedItem = (byModel as any[])[0];
+        }
+      }
+
+      if (matchedItem) {
+        extractedData.matched_item_id = matchedItem.id;
         extractedData.is_new_catalog_item = false;
-        extractedData.suggested_name = item.name;
-        extractedData.suggested_sku = item.sku;
-        extractedData.category = item.category;
+        extractedData.suggested_name = matchedItem.name;
+        extractedData.suggested_sku = matchedItem.sku;
+        extractedData.category = matchedItem.category;
 
         // Comprobación de duplicados de Serial y MAC si el producto ya existe
         if (extractedData.serial_number) {
           const dupCheck = await checkSerialAndMacDuplicate(
-            item.id,
+            matchedItem.id,
             extractedData.serial_number,
             extractedData.mac_address
           );
@@ -70,12 +85,13 @@ export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnaly
     }
 
     // 3. Guardar la captura para sincronización inmediata con la PC
-    await saveLatestCapture(sessionId, image, extractedData);
+    const captureImageToStore = previewUrl || (image.length > 100000 ? image.substring(0, 100000) : image);
+    await saveLatestCapture(sessionId, captureImageToStore, extractedData);
 
     return NextResponse.json({
       success: true,
       data: extractedData,
-      imageUrl: image,
+      imageUrl: captureImageToStore,
     });
   } catch (error: any) {
     console.error("[Analyze Route] Error general:", error);

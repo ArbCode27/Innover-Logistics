@@ -27,7 +27,7 @@ interface MobileScannerViewProps {
 
 export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
   token,
-  initialSession: _initialSession,
+  initialSession,
   locationName,
   userName,
 }) => {
@@ -205,7 +205,8 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
     if (!token) return;
 
     const supabase = createClient();
-    const channelName = `scan-session:${token}`;
+    const syncId = initialSession?.id || token;
+    const channelName = `scan-sync:${syncId}`;
 
     const channel = supabase.channel(channelName, {
       config: { broadcast: { self: false } },
@@ -364,6 +365,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
         body: JSON.stringify({
           sessionId: token,
           image: dataUrl,
+          previewUrl: microThumb,
           barcodes: [],
         }),
       });
