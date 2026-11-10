@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getScanSessionByToken, updateScanSessionStatus } from "@/actions/scan";
+import {
+  getScanSessionByToken,
+  updateScanSessionStatus,
+  getLatestCapture,
+} from "@/actions/scan";
 import type { ScanSessionStatus } from "@/types/scan";
 
 export const runtime = "nodejs";
@@ -11,6 +15,7 @@ export const GET = async (
   try {
     const { token } = await params;
     const { session, location, profile } = await getScanSessionByToken(token);
+    const latestCapture = await getLatestCapture(token);
 
     if (!session) {
       return NextResponse.json(
@@ -26,6 +31,7 @@ export const GET = async (
         ? { id: location.id, name: location.name, code: location.code }
         : null,
       userName: profile?.full_name || "Operador de Bodega",
+      latestCapture,
     });
   } catch (error: any) {
     return NextResponse.json(

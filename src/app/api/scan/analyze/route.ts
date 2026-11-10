@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeImageWithGroq } from "@/lib/groq";
 import { createClient } from "@/lib/supabase/server";
-import { checkSerialAndMacDuplicate } from "@/actions/scan";
+import { checkSerialAndMacDuplicate, saveLatestCapture } from "@/actions/scan";
 import type { ExtractedLabelData, ScanAnalyzeResponse } from "@/types/scan";
 
 export const runtime = "nodejs";
@@ -68,6 +68,9 @@ export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnaly
     } catch (dbErr) {
       console.warn("[Analyze Route] Aviso en validación DB:", dbErr);
     }
+
+    // 3. Guardar la captura para sincronización inmediata con la PC
+    await saveLatestCapture(sessionId, image, extractedData);
 
     return NextResponse.json({
       success: true,

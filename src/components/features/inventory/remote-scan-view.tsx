@@ -228,6 +228,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     handleApplyRef.current = handleApplyExtractedData;
   });
 
+  const lastCaptureTimeRef = React.useRef<number>(0);
+
   // Suscripción al canal de Supabase Realtime
   React.useEffect(() => {
     const supabase = createClient();
@@ -253,7 +255,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         setIsProcessingCapture(false);
         const data: ExtractedLabelData = payload.payload?.data;
         const img: string = payload.payload?.imageUrl;
+        const ts: number = payload.payload?.timestamp || Date.now();
 
+        lastCaptureTimeRef.current = ts;
         if (img) setCapturedImage(img);
         if (data) {
           handleApplyRef.current(data, img);
@@ -278,29 +282,46 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     };
   }, [session.session_token, playScanBeep]);
 
-  // Polling de respaldo para asegurar vinculación instantánea incluso si el broadcast inicial se perdió
+  // Polling de sincronización continua (vinculación y capturas)
   React.useEffect(() => {
-    if (isConnected) return;
-
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/scan/session/${session.session_token}`);
         if (res.ok) {
           const data = await res.json();
           if (
-            data.session?.status === "connected" ||
-            data.session?.status === "scanning"
+            !isConnected &&
+            (data.session?.status === "connected" ||
+              data.session?.status === "scanning")
           ) {
             setIsConnected(true);
+          }
+
+          if (
+            data.latestCapture &&
+            data.latestCapture.timestamp > lastCaptureTimeRef.current
+          ) {
+            lastCaptureTimeRef.current = data.latestCapture.timestamp;
+            if (data.latestCapture.imageUrl) {
+              setCapturedImage(data.latestCapture.imageUrl);
+            }
+            if (data.latestCapture.data) {
+              handleApplyRef.current(
+                data.latestCapture.data,
+                data.latestCapture.imageUrl
+              );
+              playScanBeep();
+            }
+            setIsProcessingCapture(false);
           }
         }
       } catch {
         // Fallback silencioso
       }
-    }, 2500);
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [isConnected, session.session_token]);
+  }, [isConnected, session.session_token, playScanBeep]);
 
   // Copiar enlace al portapapeles
   const handleCopyLink = () => {

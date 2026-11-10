@@ -5,14 +5,73 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
 import { getLocations, getItemsCatalog } from "@/actions/inventory";
 import type {
+  ExtractedLabelData,
   RegisterPurchaseInput,
   ScanSession,
   ScanSessionStatus,
 } from "@/types/scan";
 import type { Item, Location, Profile } from "@/types/inventory";
 
+export interface SessionCapture {
+  imageUrl: string;
+  data: ExtractedLabelData;
+  timestamp: number;
+}
+
 // In-memory demo sessions cache for local preview when DB table is being created
 const IN_MEMORY_SESSIONS = new Map<string, ScanSession>();
+const IN_MEMORY_CAPTURES = new Map<string, SessionCapture>();
+
+export const saveLatestCapture = async (
+  token: string,
+  imageUrl: string,
+  data: ExtractedLabelData
+): Promise<void> => {
+  const capture: SessionCapture = {
+    imageUrl,
+    data,
+    timestamp: Date.now(),
+  };
+
+  IN_MEMORY_CAPTURES.set(token, capture);
+
+  try {
+    const supabase = await createClient();
+    await (supabase.from("scan_sessions") as any)
+      .update({
+        device_info: {
+          last_capture: capture,
+        },
+        last_activity: new Date().toISOString(),
+      })
+      .eq("session_token", token);
+  } catch (err) {
+    console.warn("[Scan Action] Error guardando última captura:", err);
+  }
+};
+
+export const getLatestCapture = async (
+  token: string
+): Promise<SessionCapture | null> => {
+  const inMem = IN_MEMORY_CAPTURES.get(token);
+  if (inMem) return inMem;
+
+  try {
+    const supabase = await createClient();
+    const { data } = await (supabase.from("scan_sessions") as any)
+      .select("device_info")
+      .eq("session_token", token)
+      .single();
+
+    if (data?.device_info?.last_capture) {
+      return data.device_info.last_capture as SessionCapture;
+    }
+  } catch {
+    // Ignorar error
+  }
+
+  return null;
+};
 
 export const createOrGetActiveScanSession = async (): Promise<{
   session: ScanSession;

@@ -329,35 +329,35 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
       if (!ctx) throw new Error("No se pudo obtener contexto 2D del canvas");
 
       ctx.drawImage(video, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
 
-      // Crear miniatura optimizada para transmisión instantánea por WebSocket (<50KB)
-      let previewDataUrl = dataUrl;
+      // Generar micro-miniatura ultraliviana (~6KB a 10KB) garantizada para WebSocket sin superar límites
+      let microThumb = "";
       try {
-        const previewCanvas = document.createElement("canvas");
-        const previewWidth = 800;
-        const previewHeight = Math.round((height * previewWidth) / width);
-        previewCanvas.width = previewWidth;
-        previewCanvas.height = previewHeight;
-        const pCtx = previewCanvas.getContext("2d");
-        if (pCtx) {
-          pCtx.drawImage(canvas, 0, 0, previewWidth, previewHeight);
-          previewDataUrl = previewCanvas.toDataURL("image/jpeg", 0.72);
+        const thumbCanvas = document.createElement("canvas");
+        const thumbWidth = 320;
+        const thumbHeight = Math.round((height * thumbWidth) / width);
+        thumbCanvas.width = thumbWidth;
+        thumbCanvas.height = thumbHeight;
+        const tCtx = thumbCanvas.getContext("2d");
+        if (tCtx) {
+          tCtx.drawImage(canvas, 0, 0, thumbWidth, thumbHeight);
+          microThumb = thumbCanvas.toDataURL("image/jpeg", 0.45);
         }
-      } catch {
-        // Fallback al dataUrl original
+      } catch (thumbErr) {
+        console.warn("[Captura] Error generando micro-miniatura:", thumbErr);
       }
 
-      // Avisar a la PC inmediatamente vía Realtime WebSocket con la foto para que aparezca al instante
+      // Avisar a la PC inmediatamente vía Realtime WebSocket con la micro-foto para que aparezca al instante
       if (channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
           event: "capture_received",
-          payload: { timestamp: Date.now(), imageUrl: previewDataUrl },
+          payload: { timestamp: Date.now(), imageUrl: microThumb || undefined },
         });
       }
 
-      // Procesar en API de extracción
+      // Procesar en API de extracción con la imagen en alta definición
       const response = await fetch("/api/scan/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -381,7 +381,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
             event: "scan_analyzed",
             payload: {
               data: result.data,
-              imageUrl: previewDataUrl,
+              imageUrl: microThumb || undefined,
             },
           });
         }
@@ -414,7 +414,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
                 confidence: 0,
                 is_new_catalog_item: false,
               },
-              imageUrl: previewDataUrl,
+              imageUrl: microThumb || undefined,
             },
           });
         }
