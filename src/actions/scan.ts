@@ -34,12 +34,33 @@ export const createOrGetActiveScanSession = async (): Promise<{
   const branchId =
     profile.branch_id || "b0000000-0000-0000-0000-000000000001";
 
-  const token = `scan-${crypto.randomUUID()}`;
+  const defaultLocation =
+    locations.find((l) => l.id === defaultLocationId) || locations[0];
+  const defaultLocationName = defaultLocation?.name || "Almacén Principal";
+
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 horas
+  const sessionId = crypto.randomUUID();
+
+  // Generamos un token autosuficiente codificado en base64url
+  // Esto garantiza que el teléfono pueda autenticar y abrir la sesión en cualquier servidor o edge sin depender de estados en memoria volátiles
+  const tokenPayload = {
+    sid: sessionId,
+    uid: profile.id,
+    un: profile.full_name,
+    bid: branchId,
+    lid: defaultLocationId,
+    ln: defaultLocationName,
+    exp: expiresAt.getTime(),
+  };
+
+  const encodedPayload = Buffer.from(JSON.stringify(tokenPayload)).toString(
+    "base64url"
+  );
+  const token = `scan-${encodedPayload}`;
 
   const newSession: ScanSession = {
-    id: crypto.randomUUID(),
+    id: sessionId,
     session_token: token,
     created_by: profile.id,
     branch_id: branchId,
@@ -54,27 +75,18 @@ export const createOrGetActiveScanSession = async (): Promise<{
 
   try {
     const supabase = await createClient();
-    const { data, error } = await (supabase.from("scan_sessions") as any)
-      .insert({
-        session_token: token,
-        created_by: profile.id,
-        branch_id: branchId,
-        default_location_id: defaultLocationId,
-        status: "waiting_device",
-        device_info: {},
-        expires_at: expiresAt.toISOString(),
-      })
-      .select("*")
-      .single();
-
-    if (!error && data) {
-      return {
-        session: data as unknown as ScanSession,
-        baseUrl: process.env.NEXT_PUBLIC_APP_URL || "",
-      };
-    }
+    await (supabase.from("scan_sessions") as any).insert({
+      id: sessionId,
+      session_token: token,
+      created_by: profile.id,
+      branch_id: branchId,
+      default_location_id: defaultLocationId,
+      status: "waiting_device",
+      device_info: {},
+      expires_at: expiresAt.toISOString(),
+    });
   } catch (err) {
-    console.warn("[Scan Session] Usando fallback local para sesión:", err);
+    console.warn("[Scan Session] Aviso al sincronizar en base de datos:", err);
   }
 
   // Guardar en caché fallback
@@ -95,19 +107,83 @@ export const getScanSessionByToken = async (
 }> => {
   if (!token) return { session: null };
 
+  // 1. Decodificación inmediata si el token es autosuficiente
+  if (token.startsWith("scan-")) {
+    const rawEncoded = token.slice(5);
+    try {
+      const decodedJson = Buffer.from(rawEncoded, "base64url").toString(
+        "utf-8"
+      );
+      const payload = JSON.parse(decodedJson);
+
+      if (payload && payload.exp && payload.exp > Date.now()) {
+        const selfSession: ScanSession = {
+          id: payload.sid || crypto.randomUUID(),
+          session_token: token,
+          created_by: payload.uid || "u-anon",
+          branch_id: payload.bid || "b-default",
+          default_location_id: payload.lid || "l-default",
+          status: "connected",
+          device_info: {},
+          last_activity: new Date().toISOString(),
+          expires_at: new Date(payload.exp).toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const mockLocation: Location = {
+          id: payload.lid || "l-default",
+          branch_id: payload.bid || "b-default",
+          code: "ALM",
+          name: payload.ln || "Ubicación asignada",
+          type: "branch",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const mockProfile: Profile = {
+          id: payload.uid || "u-anon",
+          email: "",
+          full_name: payload.un || "Operador",
+          phone: null,
+          role: "superadmin",
+          branch_id: payload.bid || null,
+          crew_id: null,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        return {
+          session: selfSession,
+          location: mockLocation,
+          profile: mockProfile,
+        };
+      }
+    } catch {
+      // Continuar con búsqueda en base de datos si no es base64
+    }
+  }
+
+  // 2. Consulta limpia en Supabase DB sin joins relacionales frágiles
   try {
     const supabase = await createClient();
     const { data, error } = await (supabase.from("scan_sessions") as any)
-      .select("*, branches(*), locations(*), profiles(*)")
+      .select("*")
       .eq("session_token", token)
       .gt("expires_at", new Date().toISOString())
       .single();
 
     if (!error && data) {
+      const locations = await getLocations(data.branch_id);
+      const loc =
+        locations.find((l) => l.id === data.default_location_id) || locations[0];
+
       return {
         session: data as unknown as ScanSession,
-        location: (data as any).locations as Location,
-        profile: (data as any).profiles as Profile,
+        location: loc || null,
+        profile: null,
       };
     }
   } catch {

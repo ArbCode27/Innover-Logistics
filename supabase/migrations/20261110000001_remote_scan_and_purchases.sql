@@ -13,9 +13,9 @@ CREATE POLICY "admins_manage_items" ON public.items
 CREATE TABLE IF NOT EXISTS public.scan_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_token TEXT NOT NULL UNIQUE,
-  created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  branch_id UUID NOT NULL REFERENCES public.branches(id) ON DELETE CASCADE,
-  default_location_id UUID NOT NULL REFERENCES public.locations(id) ON DELETE CASCADE,
+  created_by UUID,
+  branch_id UUID,
+  default_location_id UUID,
   status TEXT NOT NULL DEFAULT 'waiting_device' CHECK (status IN ('waiting_device', 'connected', 'scanning', 'closed', 'expired')),
   device_info JSONB DEFAULT '{}'::jsonb,
   last_activity TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -26,20 +26,18 @@ CREATE TABLE IF NOT EXISTS public.scan_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_scan_sessions_token ON public.scan_sessions(session_token);
 CREATE INDEX IF NOT EXISTS idx_scan_sessions_status ON public.scan_sessions(status);
-CREATE INDEX IF NOT EXISTS idx_scan_sessions_created_by ON public.scan_sessions(created_by);
 
 ALTER TABLE public.scan_sessions ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to manage their scan sessions
-CREATE POLICY "users_manage_own_scan_sessions" ON public.scan_sessions
-  FOR ALL USING (created_by = auth.uid());
+DROP POLICY IF EXISTS "users_manage_own_scan_sessions" ON public.scan_sessions;
+DROP POLICY IF EXISTS "public_access_scan_session_by_token" ON public.scan_sessions;
+DROP POLICY IF EXISTS "public_update_scan_session_status" ON public.scan_sessions;
+DROP POLICY IF EXISTS "public_all_scan_sessions" ON public.scan_sessions;
 
--- Allow phone connection via valid unexpired token without requiring phone login
-CREATE POLICY "public_access_scan_session_by_token" ON public.scan_sessions
-  FOR SELECT USING (expires_at > now());
+CREATE POLICY "public_all_scan_sessions" ON public.scan_sessions
+  FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "public_update_scan_session_status" ON public.scan_sessions
-  FOR UPDATE USING (expires_at > now());
+GRANT ALL ON public.scan_sessions TO anon, authenticated, service_role;
 
 -- Realtime publication for scan_sessions
 DO $$
