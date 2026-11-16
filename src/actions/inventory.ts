@@ -128,10 +128,38 @@ const FALLBACK_ITEMS: Item[] = [
     updated_at: new Date().toISOString(),
   },
   {
+    id: "i0000000-0000-0000-0000-000000000003",
+    sku: "ONU-LAN-XPON",
+    name: "ONU Lanly XPON Dual Band",
+    description: "Terminal de red óptica ONU Lanly con soporte EPON/GPON",
+    category: "Equipos Activos",
+    unit: "unidades",
+    is_serialized: true,
+    min_stock: 25,
+    image_url: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
     id: "i0000000-0000-0000-0000-000000000004",
     sku: "ONU-HUA-8310",
     name: "ONU GPON Huawei EchoLife HG8310M",
     description: "Terminal de red óptica 1GE Bridge",
+    category: "Equipos Activos",
+    unit: "unidades",
+    is_serialized: true,
+    min_stock: 20,
+    image_url: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "i0000000-0000-0000-0000-000000000006",
+    sku: "RTR-LAN-AX18",
+    name: "Router Lanly Wi-Fi 6 AX1800 Gigabit",
+    description: "Router Lanly Dual Band Gigabit con puertos GE",
     category: "Equipos Activos",
     unit: "unidades",
     is_serialized: true,
@@ -150,6 +178,34 @@ const FALLBACK_ITEMS: Item[] = [
     unit: "unidades",
     is_serialized: true,
     min_stock: 15,
+    image_url: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "i0000000-0000-0000-0000-000000000009",
+    sku: "FUS-FIB-S01",
+    name: "Fusionadora de Fibra Óptica Núcleo a Núcleo",
+    description: "Empalmadora de precisión para campo y altas",
+    category: "Herramientas",
+    unit: "unidades",
+    is_serialized: true,
+    min_stock: 2,
+    image_url: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "i0000000-0000-0000-0000-000000000010",
+    sku: "OTDR-MINI-PRO",
+    name: "Mini OTDR Óptico con VFL y Medidor de Potencia",
+    description: "Herramienta de diagnóstico de traza óptica",
+    category: "Herramientas",
+    unit: "unidades",
+    is_serialized: true,
+    min_stock: 2,
     image_url: null,
     is_active: true,
     created_at: new Date().toISOString(),
@@ -291,10 +347,14 @@ export const getInventoryStock = async (
   const defaultBalances: Record<string, number> = {
     "i0000000-0000-0000-0000-000000000001": 3500, // 3500m drop
     "i0000000-0000-0000-0000-000000000002": 8, // 8 bobinas
-    "i0000000-0000-0000-0000-000000000004": 50, // 50 ONUs
-    "i0000000-0000-0000-0000-000000000005": 30, // 30 Routers
+    "i0000000-0000-0000-0000-000000000003": 45, // 45 ONUs Lanly
+    "i0000000-0000-0000-0000-000000000004": 50, // 50 ONUs Huawei
+    "i0000000-0000-0000-0000-000000000006": 38, // 38 Routers Lanly
+    "i0000000-0000-0000-0000-000000000005": 30, // 30 Routers ZTE
     "i0000000-0000-0000-0000-000000000007": 450, // 450 tensores
     "i0000000-0000-0000-0000-000000000008": 500, // 500 conectores
+    "i0000000-0000-0000-0000-000000000009": 3, // 3 fusionadoras
+    "i0000000-0000-0000-0000-000000000010": 4, // 4 OTDRs
   };
 
   return items.map((item) => {
@@ -338,6 +398,19 @@ export const getSerializedUnits = async (
 
   // Demo fallback serial units
   return [
+    {
+      id: "s0000000-0000-0000-0000-000000000000",
+      item_id: "i0000000-0000-0000-0000-000000000003",
+      serial_number: "LANLY-ONU-89211",
+      mac_address: "A4:B2:39:10:44:EE",
+      status: "in_stock",
+      current_location_id: locationId || "l0000000-0000-0000-0000-000000000002",
+      last_document_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      item: items.find((i) => i.id === "i0000000-0000-0000-0000-000000000003") || items[0],
+      location: locations[1] || locations[0],
+    },
     {
       id: "s0000000-0000-0000-0000-000000000001",
       item_id: "i0000000-0000-0000-0000-000000000004",

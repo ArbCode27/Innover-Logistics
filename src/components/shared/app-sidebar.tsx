@@ -95,7 +95,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ role }) => {
   const pathname = usePathname();
   const [isOpenMobile, setIsOpenMobile] = React.useState<boolean>(false);
 
-  const filteredItems = NAV_ITEMS.filter((item) => item.roles.includes(role));
+  const filteredItems = NAV_ITEMS.filter(
+    (item) => item.roles.includes(role) && item.href !== "/inventario/registro-remoto"
+  );
 
   const handleToggleMobile = (): void => {
     setIsOpenMobile(!isOpenMobile);

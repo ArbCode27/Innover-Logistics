@@ -348,11 +348,10 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                         onChange={(e) => setItemCategory(e.target.value)}
                         className="w-full h-11 rounded-md border border-input bg-background px-2 text-xs text-foreground min-h-[44px]"
                       >
+                        <option value="Equipos Activos">Equipos Activos (ONUs / Routers)</option>
                         <option value="Fibra Óptica">Fibra Óptica</option>
-                        <option value="Equipos Activos">Equipos Activos</option>
-                        <option value="Ferretería y Pasivos">
-                          Ferretería y Pasivos
-                        </option>
+                        <option value="Ferretería y Pasivos">Ferretería y Pasivos</option>
+                        <option value="Herramientas">Herramientas de Almacén</option>
                       </select>
                     </div>
 
@@ -365,9 +364,9 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                         }
                         className="w-full h-11 rounded-md border border-input bg-background px-2 text-xs text-foreground min-h-[44px]"
                       >
+                        <option value="unidades">unidades</option>
                         <option value="metros">metros</option>
                         <option value="bobinas">bobinas</option>
-                        <option value="unidades">unidades</option>
                         <option value="kilogramos">kilogramos</option>
                         <option value="pares">pares</option>
                       </select>

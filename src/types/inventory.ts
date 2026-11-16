@@ -23,12 +23,17 @@ export type MaterialRequest = Database["public"]["Tables"]["material_requests"][
 export type AuditLogEntry = Database["public"]["Tables"]["audit_log"]["Row"];
 export type ScanSessionRecord = Database["public"]["Tables"]["scan_sessions"]["Row"];
 
+export type ProductNature = "serialized_device" | "tool" | "consumable";
+
 export interface StockItemWithBalance extends Item {
   current_stock: number;
   location_id: string;
   location_name: string;
   branch_name: string;
   is_low_stock: boolean;
+  nature?: ProductNature;
+  brand?: string | null;
+  model?: string | null;
 }
 
 export interface SerializedItemWithDetails extends SerialUnit {
