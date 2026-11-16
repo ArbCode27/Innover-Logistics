@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Boxes, Loader2, LogIn, ShieldAlert, UserCheck } from "lucide-react";
+import { Boxes, Loader2, LogIn, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { loginSchema, type LoginInput } from "@/lib/validators/auth";
@@ -16,11 +16,9 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +33,7 @@ export default function LoginPage() {
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "tvstarmiranda@gmail.com",
+      email: "",
       password: "",
     },
   });
@@ -181,22 +179,6 @@ export default function LoginPage() {
               </Button>
             </form>
           </CardContent>
-
-          <CardFooter className="flex flex-col space-y-3 border-t border-slate-800/80 pt-4">
-            <div className="flex items-center justify-between w-full text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <UserCheck className="h-3.5 w-3.5 text-blue-400" />
-                <span>Credenciales autorizadas de producción:</span>
-              </span>
-              <Badge variant="outline" className="text-[10px] text-slate-300 border-slate-700">
-                Superadmin
-              </Badge>
-            </div>
-            <div className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-950/50 text-xs text-slate-300 font-mono flex items-center justify-between">
-              <span>tvstarmiranda@gmail.com</span>
-              <span className="text-slate-500">••••••••</span>
-            </div>
-          </CardFooter>
         </Card>
       </div>
     </div>
