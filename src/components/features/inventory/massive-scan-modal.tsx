@@ -1067,51 +1067,47 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
 
                 <Button
                   type="button"
-                  variant={activeRightTab === "drafts" ? "secondary" : "ghost"}
+                  variant={activeRightTab === "history" ? "secondary" : "ghost"}
                   size="sm"
-                  onClick={() => setActiveRightTab("drafts")}
+                  onClick={() => setActiveRightTab("history")}
                   className="h-8 text-xs gap-1.5 font-medium rounded-lg relative"
                 >
-                  <Inbox className="h-3.5 w-3.5 text-amber-500" />
-                  <span>Cola de Escaneo</span>
-                  {pendingDrafts.length > 0 && (
-                    <Badge variant="default" className="ml-1 h-4 px-1.5 text-[10px] bg-amber-500 text-black">
-                      {pendingDrafts.length}
+                  <History className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Productos Registrados</span>
+                  {registeredBatch.length > 0 && (
+                    <Badge variant="default" className="ml-1 h-4 px-1.5 text-[10px] bg-emerald-600 text-white">
+                      {registeredBatch.length}
                     </Badge>
                   )}
                 </Button>
 
-                <Button
-                  type="button"
-                  variant={activeRightTab === "history" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveRightTab("history")}
-                  className="h-8 text-xs gap-1.5 font-medium rounded-lg"
-                >
-                  <History className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Historial Lote ({registeredBatch.length})</span>
-                </Button>
+                {pendingDrafts.length > 0 && (
+                  <Button
+                    type="button"
+                    variant={activeRightTab === "drafts" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveRightTab("drafts")}
+                    className="h-8 text-xs gap-1.5 font-medium rounded-lg relative"
+                  >
+                    <Inbox className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Capturas Móvil</span>
+                    <Badge variant="default" className="ml-1 h-4 px-1.5 text-[10px] bg-amber-500 text-black">
+                      {pendingDrafts.length}
+                    </Badge>
+                  </Button>
+                )}
               </div>
 
-              {/* Botón de registrar todo rápido si hay pendientes */}
-              {pendingDrafts.length > 0 && (
+              {/* Botón rápido para ver lista de productos registrados */}
+              {registeredBatch.length > 0 && activeRightTab === "form" && (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    const first = pendingDrafts[0];
-                    if (first) {
-                      setSerialNumber(first.serialNumber);
-                      if (first.macAddress) setMacAddress(first.macAddress);
-                      if (first.matchedItemId) setSelectedItemId(first.matchedItemId);
-                      handleVerifyDuplicates(first.serialNumber, first.macAddress || macAddress);
-                      setActiveRightTab("form");
-                    }
-                  }}
-                  className="h-8 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/5 hidden sm:flex"
+                  onClick={() => setActiveRightTab("history")}
+                  className="h-8 text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hidden sm:flex"
                 >
-                  <span>Cargar Siguiente</span>
+                  <span>Ver Registrados ({registeredBatch.length})</span>
                   <ArrowRight className="h-3 w-3" />
                 </Button>
               )}
@@ -1581,49 +1577,79 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
               </div>
             )}
 
-            {/* TAB 3: HISTORIAL DE REGISTROS EN ESTE LOTE */}
+            {/* TAB: PRODUCTOS REGISTRADOS EN ESTA SESIÓN / LOTE */}
             {activeRightTab === "history" && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                       <History className="h-4 w-4 text-emerald-500" />
-                      <span>Equipos Registrados en esta Sesión ({registeredBatch.length})</span>
+                      <span>Productos Registrados en este Lote ({registeredBatch.length})</span>
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Mostrando los ingresos procesados y guardados en la base de datos durante este lote.
+                      Listado de todos los equipos ingresados en esta sesión (tanto por carga manual como por escaneo móvil).
                     </p>
                   </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setActiveRightTab("form")}
+                    className="text-xs h-8 gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-primary" />
+                    <span>Registrar Otro Equipo</span>
+                  </Button>
                 </div>
 
                 {registeredBatch.length === 0 ? (
                   <div className="p-8 text-center rounded-xl border-2 border-dashed bg-muted/20 space-y-2">
                     <FileCheck className="h-8 w-8 text-muted-foreground mx-auto" />
-                    <p className="text-xs font-semibold text-foreground">Aún no se han registrado equipos</p>
+                    <p className="text-xs font-semibold text-foreground">Aún no se han registrado productos</p>
                     <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                      A medida que confirmes los equipos mediante el botón de registro, aparecerán listados aquí con su número de comprobante.
+                      Al presionar &quot;+ Registrar e Ir al Siguiente&quot; desde el formulario o &quot;Registrar&quot; desde las capturas móviles, los equipos aparecerán aquí inmediatamente.
                     </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setActiveRightTab("form")}
+                      className="text-xs mt-2"
+                    >
+                      Ir al Formulario de Ingreso
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
-                    {registeredBatch.map((entry) => (
+                    {registeredBatch.map((entry, idx) => (
                       <div
                         key={entry.id}
-                        className="p-3 rounded-xl border bg-card flex items-center justify-between gap-3 shadow-sm"
+                        className="p-3 rounded-xl border bg-card flex items-center justify-between gap-3 shadow-sm hover:bg-muted/30 transition-colors"
                       >
                         <div className="truncate text-left space-y-1.5 flex-1 min-w-0">
-                          <div className="font-semibold text-foreground text-xs truncate">
-                            {entry.itemName}
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-foreground text-xs truncate">
+                              {entry.itemName}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] font-mono">
+                              #{registeredBatch.length - idx}
+                            </Badge>
                           </div>
+
                           <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="inline-flex items-center gap-1 font-mono font-medium text-foreground bg-muted px-2 py-0.5 rounded border text-[11px]">
-                              <Cpu className="h-3 w-3 text-primary" />
+                            <span className="inline-flex items-center gap-1 font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 text-[11px]">
+                              <Cpu className="h-3 w-3" />
                               <span>{entry.serialNumber ? `SN: ${entry.serialNumber}` : `Cantidad: +${entry.quantity}`}</span>
                             </span>
-                            {entry.macAddress && (
+                            {entry.macAddress ? (
                               <span className="inline-flex items-center gap-1 font-mono font-medium text-foreground bg-muted px-2 py-0.5 rounded border text-[11px]">
                                 <Wifi className="h-3 w-3 text-primary" />
                                 <span>MAC: {entry.macAddress}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border">
+                                <span>Sin MAC</span>
                               </span>
                             )}
                           </div>
