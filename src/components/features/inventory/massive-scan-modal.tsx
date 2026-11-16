@@ -33,6 +33,8 @@ import {
   CheckCheck,
   ListFilter,
   FileCheck,
+  FileText,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1326,32 +1328,47 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                   </div>
                 )}
 
-                {/* Reference & Notes */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="ticket-field" className="text-xs font-medium">
-                      Comprobante / N° Factura
-                    </Label>
-                    <Input
-                      id="ticket-field"
-                      value={ticketRef}
-                      onChange={(e) => setTicketRef(e.target.value)}
-                      placeholder="FAC-2026-901"
-                      className="h-9 text-xs min-h-[40px]"
-                    />
+                {/* Reference & Notes (Comunes para todo el lote) */}
+                <div className="p-3.5 bg-muted/40 rounded-xl border border-dashed space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      <span>Datos del Lote (Comprobante y Notas de Recepción)</span>
+                    </span>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
+                      <Lock className="h-2.5 w-2.5" /> 1 por lote
+                    </Badge>
                   </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Estos datos se mantienen fijos para todos los equipos escaneados en esta sesión (ej. lote de 400 ONUs con una misma factura).
+                  </p>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="notes-field" className="text-xs font-medium">
-                      Notas de Recepción
-                    </Label>
-                    <Input
-                      id="notes-field"
-                      value={supplierNotes}
-                      onChange={(e) => setSupplierNotes(e.target.value)}
-                      placeholder="Caja sellada / Verificado"
-                      className="h-9 text-xs min-h-[40px]"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label htmlFor="ticket-field" className="text-xs font-medium">
+                        Comprobante / N° Factura Lote *
+                      </Label>
+                      <Input
+                        id="ticket-field"
+                        value={ticketRef}
+                        onChange={(e) => setTicketRef(e.target.value)}
+                        placeholder="FAC-2026-901 / GUIA-LOTE-01"
+                        className="h-9 text-xs min-h-[40px] bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="notes-field" className="text-xs font-medium">
+                        Notas de Recepción del Lote
+                      </Label>
+                      <Input
+                        id="notes-field"
+                        value={supplierNotes}
+                        onChange={(e) => setSupplierNotes(e.target.value)}
+                        placeholder="Caja sellada / Verificado lote proveedor"
+                        className="h-9 text-xs min-h-[40px] bg-background"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1477,7 +1494,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                           )}
 
                           {/* Info producto y seriales */}
-                          <div className="truncate text-left space-y-1">
+                          <div className="truncate text-left space-y-1.5 flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-semibold text-foreground truncate">
                                 {draft.itemName}
@@ -1492,13 +1509,19 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                               )}
                             </div>
 
-                            <div className="flex items-center gap-3 font-mono text-xs">
-                              <span className="text-primary font-bold">
-                                SN: {draft.serialNumber}
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+                              <span className="inline-flex items-center gap-1 font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                                <Cpu className="h-3 w-3" />
+                                <span>SN: {draft.serialNumber}</span>
                               </span>
-                              {draft.macAddress && (
-                                <span className="text-muted-foreground text-[11px]">
-                                  MAC: {draft.macAddress}
+                              {draft.macAddress ? (
+                                <span className="inline-flex items-center gap-1 font-mono font-medium text-foreground bg-muted px-2 py-0.5 rounded border">
+                                  <Wifi className="h-3 w-3 text-primary" />
+                                  <span>MAC: {draft.macAddress}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                  <span>MAC no detectada (opcional/editar)</span>
                                 </span>
                               )}
                             </div>
@@ -1588,13 +1611,21 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                         key={entry.id}
                         className="p-3 rounded-xl border bg-card flex items-center justify-between gap-3 shadow-sm"
                       >
-                        <div className="truncate text-left space-y-1">
+                        <div className="truncate text-left space-y-1.5 flex-1 min-w-0">
                           <div className="font-semibold text-foreground text-xs truncate">
                             {entry.itemName}
                           </div>
-                          <div className="font-mono text-xs text-muted-foreground flex items-center gap-2">
-                            <span>{entry.serialNumber ? `SN: ${entry.serialNumber}` : `Cantidad: +${entry.quantity}`}</span>
-                            {entry.macAddress && <span>• MAC: {entry.macAddress}</span>}
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="inline-flex items-center gap-1 font-mono font-medium text-foreground bg-muted px-2 py-0.5 rounded border text-[11px]">
+                              <Cpu className="h-3 w-3 text-primary" />
+                              <span>{entry.serialNumber ? `SN: ${entry.serialNumber}` : `Cantidad: +${entry.quantity}`}</span>
+                            </span>
+                            {entry.macAddress && (
+                              <span className="inline-flex items-center gap-1 font-mono font-medium text-foreground bg-muted px-2 py-0.5 rounded border text-[11px]">
+                                <Wifi className="h-3 w-3 text-primary" />
+                                <span>MAC: {entry.macAddress}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
 

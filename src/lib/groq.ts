@@ -9,23 +9,29 @@ interface GroqVisionMessageContent {
 }
 
 const SYSTEM_PROMPT = `
-Eres un sistema de visión artificial de alta precisión para inventario de telecomunicaciones (Star Conectados).
-Tu objetivo es leer etiquetas de equipos (ONUs, Routers, OLTs, switches, etc.) y extraer ÚNICAMENTE los datos visibles reales.
-NO inventes datos. Si un campo no es visible o legible en la foto, déjalo como null.
+Eres un sistema de visión artificial experto en inventario de telecomunicaciones (Star Conectados).
+Tu objetivo es examinar la etiqueta del equipo (ONU, Router, ONT, OLT, Switch) y extraer de forma exhaustiva y precisa:
+1. "serial_number": El número de serie (SN, S/N, GPON SN, PON SN, Barcode).
+2. "mac_address": La dirección MAC física del equipo (frecuentemente etiquetada como MAC, MAC ADDR, WAN MAC, LAN MAC o BSSID). Búscala con mucha atención: puede estar formateada como XX:XX:XX:XX:XX:XX, XX-XX-XX-XX-XX-XX o como 12 caracteres hexadecimales continuos. Si la encuentras sin dos puntos o con guiones, normalízala siempre al formato XX:XX:XX:XX:XX:XX.
+3. "brand": Marca del fabricante (ej: Lanly, ZTE, Huawei, FiberHome, TP-Link, Mercusys, V-Sol, etc.).
+4. "model": Modelo exacto (ej: XPON Dual Band, HG8310M, F670L, etc.).
 
-Devuelve estrictamente un objeto JSON con esta estructura exacta (sin markdown ni texto adicional):
+IMPORTANTE:
+- Revisa minuciosamente todas las líneas de texto, números y códigos de barras de la etiqueta.
+- La dirección MAC casi siempre está presente en ONUs y Routers junto a su código de barras o debajo del serial.
+- Devuelve estrictamente un JSON válido con esta estructura (sin texto explicativo ni formato adicional):
 {
-  "brand": "Marca del equipo (ej: ZTE, Huawei, FiberHome, TP-Link, Mercusys, etc.) o null",
-  "model": "Modelo exacto (ej: EchoLife HG8310M, ZXHN F670L, Archer C6) o null",
-  "serial_number": "Número de serie alfanumérico limpio sin prefijo SN/SN: o null",
-  "mac_address": "Dirección MAC física en formato XX:XX:XX:XX:XX:XX o null",
-  "suggested_sku": "SKU sugerido en mayúsculas (ej: ONT-ZTE-F670L) o null",
-  "suggested_name": "Nombre descriptivo (ej: Router Wi-Fi 6 ZTE ZXHN F670L) o null",
+  "brand": "Marca o null",
+  "model": "Modelo o null",
+  "serial_number": "Número de serie alfanumérico limpio o null",
+  "mac_address": "XX:XX:XX:XX:XX:XX o null",
+  "suggested_sku": "SKU sugerido en mayúsculas o null",
+  "suggested_name": "Nombre descriptivo o null",
   "category": "Equipos Activos",
   "unit": "unidades",
   "is_serialized": true,
   "confidence": 0.95,
-  "raw_text": "Texto completo leído de la etiqueta"
+  "raw_text": "Todo el texto legible encontrado en la etiqueta"
 }
 `;
 
@@ -44,14 +50,17 @@ export const analyzeImageWithGroq = async (
   const fallbackModel = "llama-3.2-90b-vision-preview";
 
   const userPrompt = `
-Analiza la etiqueta en la imagen adjunta.
+Examina con máxima atención la etiqueta en la imagen adjunta.
 ${
   detectedBarcodes.length > 0
     ? `Códigos de barras / QR pre-detectados: ${detectedBarcodes.join(", ")}`
     : ""
 }
-Lee el número de serie (SN), la dirección MAC, la marca y el modelo.
-Responde únicamente con el JSON válido.
+Instrucciones críticas:
+1. Extrae el número de serie (SN / Serial Number).
+2. Extrae la dirección MAC (MAC / MAC Address). Fíjate en los bloques de 12 dígitos hexadecimales o con formato XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX.
+3. Extrae la marca y modelo.
+Devuelve únicamente el objeto JSON con los campos extraídos.
 `;
 
   // Intento con modelo principal y fallback automático si el modelo cambia
@@ -212,7 +221,8 @@ const formatMacAddress = (mac?: string): string | undefined => {
 
 const isLikelyMac = (text: string): boolean => {
   const cleaned = text.replace(/[^0-9A-Fa-f]/g, "");
-  return cleaned.length === 12;
+  // Una MAC tiene exactamente 12 caracteres hexadecimales
+  return cleaned.length === 12 && /^[0-9A-Fa-f]{12}$/.test(cleaned);
 };
 
 const cleanSerial = (sn?: string | null): string | undefined => {
@@ -230,22 +240,38 @@ const extractMacAndSerialFromText = (
   let foundMac: string | undefined;
   let foundSerial: string | undefined;
 
-  // Regex para MAC: XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX o 12 hex continuos con prefijo MAC
-  const macRegex = /(?:MAC(?:\s*(?:ADDR|ADDRESS))?[:\s]*)?([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/i;
+  // 1. Regex para MAC estándar: XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX
+  const macRegex = /(?:MAC(?:\s*(?:ADDR|ADDRESS|ID))?[:\s]*)?([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/i;
   const macMatch = text.match(macRegex);
   if (macMatch && macMatch[1]) {
     foundMac = formatMacAddress(macMatch[1]);
-  } else {
-    // Buscar 12 caracteres hex precedidos de "MAC"
-    const macPlainRegex = /MAC[:\s]*([0-9A-Fa-f]{12})/i;
+  }
+
+  // 2. Si no encontró con separadores, buscar "MAC" seguido de 12 dígitos hex
+  if (!foundMac) {
+    const macPlainRegex = /(?:MAC(?:\s*(?:ADDR|ADDRESS|ID))?[:\s]*)([0-9A-Fa-f]{12})/i;
     const plainMatch = text.match(macPlainRegex);
     if (plainMatch && plainMatch[1]) {
       foundMac = formatMacAddress(plainMatch[1]);
     }
   }
 
+  // 3. Buscar cualquier secuencia de 12 dígitos hex que no sea el serial
+  if (!foundMac) {
+    const allHexWords = text.match(/\b([0-9A-Fa-f]{12})\b/g);
+    if (allHexWords && allHexWords.length > 0) {
+      for (const hex of allHexWords) {
+        // Asegurar que contenga letras y números típicos de MAC o prefijo reconocible
+        if (/[A-Fa-f]/.test(hex)) {
+          foundMac = formatMacAddress(hex);
+          break;
+        }
+      }
+    }
+  }
+
   // Regex para Serial de telecomunicaciones:
-  // e.g. SN: LANLY-ONU-89211 o S/N: 48575443... o GPON SN: ALCLB...
+  // e.g. SN: LANLY-ONU-89211 o S/N: 48575443... o GPON SN: ALCLB... o L2604005011...
   const snRegex = /(?:(?:GPON|PON)?\s*(?:S\/N|SN|SERIAL)(?:\s*(?:NO|NUM|NUMBER))?[:\s]*)([A-Za-z0-9\-_]{6,30})/i;
   const snMatch = text.match(snRegex);
   if (snMatch && snMatch[1]) {
