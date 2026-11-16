@@ -30,6 +30,9 @@ import {
   ArrowRight,
   Trash2,
   Check,
+  CheckCheck,
+  ListFilter,
+  FileCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -155,6 +158,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [registeredBatch, setRegisteredBatch] = React.useState<RegisteredBatchEntry[]>([]);
   const [pendingDrafts, setPendingDrafts] = React.useState<PendingScanDraft[]>([]);
+  const [activeRightTab, setActiveRightTab] = React.useState<"form" | "drafts" | "history">("form");
 
   // Find selected item configuration
   const currentItem = React.useMemo(() => {
@@ -611,30 +615,35 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
   };
 
   // Save product registration
-  const handleSaveProduct = async (e?: React.FormEvent): Promise<void> => {
+  const handleSaveProduct = async (
+    e?: React.FormEvent,
+    overrideData?: {
+      itemId?: string;
+      serialNumber?: string;
+      macAddress?: string;
+    }
+  ): Promise<void> => {
     if (e) e.preventDefault();
+
+    const targetItemId = overrideData?.itemId || selectedItemId;
+    const targetSn = (overrideData?.serialNumber ?? serialNumber).trim().toUpperCase();
+    const targetMac = (overrideData?.macAddress ?? macAddress).trim().toUpperCase();
 
     if (!selectedLocationId) {
       toast.error("Seleccione la ubicación de almacén");
       return;
     }
 
-    if (!selectedItemId) {
+    if (!targetItemId) {
       toast.error("Seleccione un producto");
       return;
     }
 
-    if (isSerialized && !serialNumber.trim()) {
+    const itemToRegister = items.find((i) => i.id === targetItemId) || currentItem;
+    const itemIsSerialized = Boolean(itemToRegister?.is_serialized);
+
+    if (itemIsSerialized && !targetSn) {
       toast.error("El número de serie (SN) es obligatorio");
-      return;
-    }
-
-    if (requiresMac && !macAddress.trim()) {
-      toast.warning("Para este equipo se recomienda registrar la dirección MAC");
-    }
-
-    if (isDuplicateSerial) {
-      toast.error("El número de serie ingresado ya existe en stock");
       return;
     }
 
@@ -642,10 +651,10 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
     try {
       const res = await registerPurchaseAction({
         location_id: selectedLocationId,
-        item_id: selectedItemId,
-        quantity: isSerialized ? 1 : Math.max(1, quantity),
-        serial_number: isSerialized ? serialNumber.trim().toUpperCase() : undefined,
-        mac_address: requiresMac && macAddress ? macAddress.trim().toUpperCase() : undefined,
+        item_id: targetItemId,
+        quantity: itemIsSerialized ? 1 : Math.max(1, quantity),
+        serial_number: itemIsSerialized ? targetSn : undefined,
+        mac_address: targetMac || undefined,
         ticket_ref: ticketRef.trim(),
         supplier_notes: supplierNotes.trim() || undefined,
         is_new_item: false,
@@ -658,7 +667,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
 
       playSuccessFeedback();
       toast.success(
-        `Registrado: ${currentItem.name} (+${isSerialized ? 1 : quantity} ${currentItem.unit})`
+        `Registrado: ${itemToRegister.name} (+${itemIsSerialized ? 1 : quantity} ${itemToRegister.unit})`
       );
 
       // Notify connected phone if active
@@ -667,7 +676,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
           type: "broadcast",
           event: "scan_saved",
           payload: {
-            serial: serialNumber,
+            serial: targetSn,
             document_number: res.document_number,
           },
         });
@@ -676,26 +685,29 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
       // Append to session batch
       const newEntry: RegisteredBatchEntry = {
         id: crypto.randomUUID(),
-        itemName: currentItem.name,
-        sku: currentItem.sku,
-        serialNumber: isSerialized ? serialNumber.trim().toUpperCase() : undefined,
-        macAddress: requiresMac && macAddress ? macAddress.trim().toUpperCase() : undefined,
-        quantity: isSerialized ? 1 : quantity,
+        itemName: itemToRegister.name,
+        sku: itemToRegister.sku,
+        serialNumber: itemIsSerialized ? targetSn : undefined,
+        macAddress: targetMac || undefined,
+        quantity: itemIsSerialized ? 1 : quantity,
         documentNumber: res.document_number || "COM-AUTO",
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
       };
 
       setRegisteredBatch((prev) => [newEntry, ...prev]);
 
-      // Remover de borradores pendientes si el serial registrado estaba en la cola
-      const currentSn = serialNumber.trim().toUpperCase();
-      setPendingDrafts((prev) => prev.filter((d) => d.serialNumber.toUpperCase() !== currentSn));
+      // Remover de borradores pendientes si estaba en la cola
+      if (targetSn) {
+        setPendingDrafts((prev) => prev.filter((d) => d.serialNumber.toUpperCase() !== targetSn));
+      }
 
-      // Reset serial inputs while maintaining item and location for burst/batch scanning
-      setSerialNumber("");
-      setMacAddress("");
-      setIsDuplicateSerial(false);
-      setIsDuplicateMac(false);
+      // Reset serial inputs si era el que estaba en el form
+      if (serialNumber.trim().toUpperCase() === targetSn) {
+        setSerialNumber("");
+        setMacAddress("");
+        setIsDuplicateSerial(false);
+        setIsDuplicateMac(false);
+      }
 
       if (onSuccessRegistration) {
         onSuccessRegistration();
@@ -709,11 +721,11 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[94vh] overflow-y-auto p-4 sm:p-6 gap-5">
-        <DialogHeader className="pb-2 border-b">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-primary/10 rounded-lg text-primary">
+      <DialogContent className="max-w-6xl w-[96vw] max-h-[94vh] overflow-y-auto p-4 sm:p-6 gap-5">
+        <DialogHeader className="pb-3 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 bg-primary/10 rounded-xl text-primary flex-shrink-0">
                 <Camera className="h-5 w-5" />
               </div>
               <div>
@@ -724,31 +736,55 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                   </Badge>
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  Usa la cámara web de tu PC o escanea con la cámara de tu teléfono móvil.
+                  Escanea con tu teléfono móvil o cámara web para ingresar equipos en tiempo real.
                 </DialogDescription>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {isPhoneConnected && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {isPhoneConnected ? (
                 <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1.5 px-2.5 py-1 text-xs">
                   <Wifi className="h-3 w-3 animate-pulse" />
                   <span>Móvil Vinculado</span>
                 </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground flex items-center gap-1.5 px-2.5 py-1 text-xs">
+                  <WifiOff className="h-3 w-3" />
+                  <span>Esperando Móvil</span>
+                </Badge>
               )}
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-                {registeredBatch.length} cargados en lote
+              {pendingDrafts.length > 0 && (
+                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-xs">
+                  {pendingDrafts.length} pendientes
+                </Badge>
+              )}
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                {registeredBatch.length} registrados
               </Badge>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Camera Scanner HUD & QR Connect Switcher */}
-          <div className="lg:col-span-6 space-y-4">
+        {/* 30% QR / Cámara - 70% Formulario, Listas y Registro */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column (~30% / 4 de 12 columnas): QR Scanner & Camera HUD */}
+          <div className="lg:col-span-4 xl:col-span-4 space-y-3.5">
             {/* Source Switcher Tabs: PC WebCam vs Mobile Phone QR */}
             {isSerialized && (
               <div className="flex items-center p-1 bg-muted/60 rounded-xl border">
+                <Button
+                  type="button"
+                  variant={activeSource === "phone_qr" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveSource("phone_qr")}
+                  className="flex-1 h-8 text-xs gap-1.5 font-medium rounded-lg relative"
+                >
+                  <QrCode className="h-3.5 w-3.5 text-primary" />
+                  <span>Conectar Teléfono</span>
+                  {isPhoneConnected && (
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
+                  )}
+                </Button>
                 <Button
                   type="button"
                   variant={activeSource === "local_cam" ? "secondary" : "ghost"}
@@ -757,20 +793,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                   className="flex-1 h-8 text-xs gap-1.5 font-medium rounded-lg"
                 >
                   <Camera className="h-3.5 w-3.5" />
-                  <span>Cámara PC / Laptop</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={activeSource === "phone_qr" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveSource("phone_qr")}
-                  className="flex-1 h-8 text-xs gap-1.5 font-medium rounded-lg relative"
-                >
-                  <QrCode className="h-3.5 w-3.5" />
-                  <span>Conectar Teléfono</span>
-                  {isPhoneConnected && (
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
-                  )}
+                  <span>Cámara PC</span>
                 </Button>
               </div>
             )}
@@ -782,24 +805,24 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-foreground flex items-center justify-center gap-1.5">
                       <Smartphone className="h-4 w-4 text-primary" />
-                      <span>Escanear con Teléfono Móvil</span>
+                      <span>Escanear con Teléfono</span>
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Abre la cámara de tu teléfono y escanea este código. Los datos aparecerán aquí automáticamente.
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Escanea este código con la cámara de tu teléfono móvil. Las fotos y datos aparecerán al instante.
                     </p>
                   </div>
 
                   {/* QR Image Box */}
-                  <div className="p-3 bg-white rounded-xl shadow-md border flex items-center justify-center">
+                  <div className="p-3 bg-white rounded-xl shadow-sm border flex items-center justify-center">
                     {qrCodeUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={qrCodeUrl}
                         alt="Código QR de vinculación para cámara de teléfono"
-                        className="w-48 h-48 object-contain"
+                        className="w-44 h-44 object-contain"
                       />
                     ) : (
-                      <div className="w-48 h-48 flex items-center justify-center bg-slate-100 rounded-lg">
+                      <div className="w-44 h-44 flex items-center justify-center bg-slate-100 rounded-lg">
                         <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
                       </div>
                     )}
@@ -828,7 +851,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                   {/* Remote Capture Preview (if received from phone) */}
                   {remoteCapturedImage && (
                     <div className="w-full pt-2 border-t flex items-center gap-2 text-left">
-                      <div className="h-10 w-10 rounded border bg-black overflow-hidden flex-shrink-0">
+                      <div className="h-11 w-11 rounded-lg border bg-black overflow-hidden flex-shrink-0 shadow-sm">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={remoteCapturedImage}
@@ -846,9 +869,9 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                   )}
 
                   {isPhoneProcessing && (
-                    <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
+                    <div className="flex items-center gap-1.5 text-xs text-primary font-medium animate-pulse">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Procesando lectura óptica del teléfono...</span>
+                      <span>Procesando lectura óptica...</span>
                     </div>
                   )}
                 </div>
@@ -994,9 +1017,9 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
             )}
 
             {/* Product Quick Info Card */}
-            <div className="p-3 bg-muted/40 rounded-xl border space-y-2 text-xs">
+            <div className="p-3 bg-muted/30 rounded-xl border space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">Naturaleza del producto:</span>
+                <span className="text-muted-foreground font-medium">Naturaleza:</span>
                 <Badge
                   variant={isSerialized ? "secondary" : "outline"}
                   className="font-medium text-[11px] gap-1"
@@ -1022,416 +1045,571 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                 <span>Unidad: <strong className="text-foreground uppercase">{currentItem.unit}</strong></span>
               </div>
             </div>
+          </div>
 
-            {/* Pending Scanned Drafts Queue */}
-            {pendingDrafts.length > 0 && (
-              <div className="space-y-2 p-3 bg-primary/5 rounded-xl border border-primary/20">
-                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-                  <span className="flex items-center gap-1.5 text-primary">
-                    <Inbox className="h-4 w-4" />
-                    <span>Equipos pendientes de registrar ({pendingDrafts.length})</span>
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">Click en uno para cargarlo</span>
-                </div>
+          {/* Right Column (~70% / 8 de 12 columnas): Formulario, Cola de Items y Registro Masivo */}
+          <div className="lg:col-span-8 xl:col-span-8 space-y-4">
+            {/* Header Switcher de Pestañas para el Área de Trabajo Derecha */}
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border">
+                <Button
+                  type="button"
+                  variant={activeRightTab === "form" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveRightTab("form")}
+                  className="h-8 text-xs gap-1.5 font-medium rounded-lg"
+                >
+                  <Cpu className="h-3.5 w-3.5 text-primary" />
+                  <span>Formulario de Ingreso</span>
+                </Button>
 
-                <div className="max-h-48 overflow-y-auto rounded-lg border divide-y bg-background text-xs">
-                  {pendingDrafts.map((draft) => (
-                    <div
-                      key={draft.id}
-                      onClick={() => {
-                        setSerialNumber(draft.serialNumber);
-                        if (draft.macAddress) setMacAddress(draft.macAddress);
-                        if (draft.matchedItemId) setSelectedItemId(draft.matchedItemId);
-                        handleVerifyDuplicates(draft.serialNumber, draft.macAddress || macAddress);
-                        toast.info(`Cargado: ${draft.serialNumber}`);
-                      }}
-                      className="p-2.5 flex items-center justify-between gap-2.5 hover:bg-muted/60 transition-colors cursor-pointer group"
-                      title="Hacer clic para cargar en el formulario"
+                <Button
+                  type="button"
+                  variant={activeRightTab === "drafts" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveRightTab("drafts")}
+                  className="h-8 text-xs gap-1.5 font-medium rounded-lg relative"
+                >
+                  <Inbox className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Cola de Escaneo</span>
+                  {pendingDrafts.length > 0 && (
+                    <Badge variant="default" className="ml-1 h-4 px-1.5 text-[10px] bg-amber-500 text-black">
+                      {pendingDrafts.length}
+                    </Badge>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant={activeRightTab === "history" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveRightTab("history")}
+                  className="h-8 text-xs gap-1.5 font-medium rounded-lg"
+                >
+                  <History className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Historial Lote ({registeredBatch.length})</span>
+                </Button>
+              </div>
+
+              {/* Botón de registrar todo rápido si hay pendientes */}
+              {pendingDrafts.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const first = pendingDrafts[0];
+                    if (first) {
+                      setSerialNumber(first.serialNumber);
+                      if (first.macAddress) setMacAddress(first.macAddress);
+                      if (first.matchedItemId) setSelectedItemId(first.matchedItemId);
+                      handleVerifyDuplicates(first.serialNumber, first.macAddress || macAddress);
+                      setActiveRightTab("form");
+                    }
+                  }}
+                  className="h-8 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/5 hidden sm:flex"
+                >
+                  <span>Cargar Siguiente</span>
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+
+            {/* TAB 1: FORMULARIO PRINCIPAL DE REGISTRO */}
+            {activeRightTab === "form" && (
+              <form onSubmit={handleSaveProduct} className="space-y-4">
+                {/* Product and Location Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Searchable Product Type Selector */}
+                  <div className="space-y-1 relative" ref={productPickerRef}>
+                    <Label className="text-xs font-semibold">
+                      Tipo de Producto
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setIsProductPickerOpen((prev) => !prev)}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 min-h-[40px] text-left"
+                      aria-expanded={isProductPickerOpen}
+                      aria-label="Seleccionar y buscar tipo de producto"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {draft.imageUrl ? (
-                          <div className="h-10 w-10 rounded border bg-black overflow-hidden flex-shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={draft.imageUrl}
-                              alt="Foto equipo"
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="h-10 w-10 rounded border bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground">
-                            <Cpu className="h-4 w-4" />
-                          </div>
-                        )}
-                        <div className="truncate text-left">
-                          <div className="font-semibold text-foreground truncate flex items-center gap-1.5">
-                            <span>{draft.itemName}</span>
-                            {draft.isDuplicate && (
-                              <Badge variant="destructive" className="text-[9px] px-1 py-0">
-                                Duplicado
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="font-mono text-[11px] text-primary font-medium">
-                            SN: {draft.serialNumber}
-                          </div>
-                          {draft.macAddress && (
-                            <div className="font-mono text-[10px] text-muted-foreground">
-                              MAC: {draft.macAddress}
+                      <div className="truncate">
+                        <span className="font-semibold text-foreground">
+                          {currentItem?.name || "Seleccionar..."}
+                        </span>{" "}
+                        <span className="text-muted-foreground font-mono text-[11px]">
+                          ({currentItem?.sku})
+                        </span>
+                      </div>
+                      <Search className="h-4 w-4 shrink-0 opacity-50 ml-2" />
+                    </button>
+
+                    {/* Dropdown with live search filter */}
+                    {isProductPickerOpen && (
+                      <div className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[340px] rounded-lg border bg-popover p-2 text-popover-foreground shadow-xl">
+                        <div className="relative mb-2">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            value={itemSearchTerm}
+                            onChange={(e) => setItemSearchTerm(e.target.value)}
+                            placeholder="Buscar por nombre, modelo, SKU..."
+                            className="h-8 pl-8 text-xs bg-muted/40"
+                            autoFocus
+                          />
+                          {itemSearchTerm && (
+                            <button
+                              type="button"
+                              onClick={() => setItemSearchTerm("")}
+                              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground text-xs"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="max-h-52 overflow-y-auto space-y-1 text-xs">
+                          {filteredItemsForSelect.length === 0 ? (
+                            <div className="p-3 text-center text-muted-foreground text-xs">
+                              No se encontraron productos coincidentes.
                             </div>
+                          ) : (
+                            filteredItemsForSelect.map((i) => {
+                              const isSelected = i.id === selectedItemId;
+                              return (
+                                <button
+                                  key={i.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedItemId(i.id);
+                                    setIsProductPickerOpen(false);
+                                    setItemSearchTerm("");
+                                    setSerialNumber("");
+                                    setMacAddress("");
+                                    setIsDuplicateSerial(false);
+                                    setIsDuplicateMac(false);
+                                  }}
+                                  className={`w-full flex items-center justify-between p-2 rounded-md transition-colors text-left text-xs ${
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground font-semibold"
+                                      : "hover:bg-muted text-foreground"
+                                  }`}
+                                >
+                                  <div className="truncate pr-2">
+                                    <div className="truncate">{i.name}</div>
+                                    <div
+                                      className={`text-[10px] font-mono ${
+                                        isSelected
+                                          ? "text-primary-foreground/80"
+                                          : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      SKU: {i.sku} • {i.category}
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })
                           )}
                         </div>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPendingDrafts((prev) => prev.filter((p) => p.id !== draft.id));
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          title="Descartar de la lista"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSerialNumber(draft.serialNumber);
-                            if (draft.macAddress) setMacAddress(draft.macAddress);
-                            if (draft.matchedItemId) setSelectedItemId(draft.matchedItemId);
-                            handleVerifyDuplicates(draft.serialNumber, draft.macAddress || macAddress);
-                          }}
-                          className="h-7 px-2 text-[10px] gap-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                        >
-                          <span>Cargar</span>
-                          <ArrowRight className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Batch Session History Table */}
-            {registeredBatch.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <History className="h-3.5 w-3.5 text-primary" />
-                    Registros en esta sesión ({registeredBatch.length})
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">Más recientes primero</span>
-                </div>
-
-                <div className="max-h-36 overflow-y-auto rounded-lg border divide-y bg-card text-xs">
-                  {registeredBatch.map((entry) => (
-                    <div key={entry.id} className="p-2 flex items-center justify-between gap-2">
-                      <div className="truncate">
-                        <div className="font-semibold text-foreground truncate">{entry.itemName}</div>
-                        <div className="font-mono text-[10px] text-muted-foreground">
-                          {entry.serialNumber ? `SN: ${entry.serialNumber}` : `Cant: +${entry.quantity}`}
-                          {entry.macAddress ? ` | MAC: ${entry.macAddress}` : ""}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <Badge variant="success" className="text-[10px] px-1.5 py-0">
-                          {entry.documentNumber}
-                        </Badge>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">{entry.time}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Dynamic Form Fields */}
-          <div className="lg:col-span-6 space-y-4">
-            <form onSubmit={handleSaveProduct} className="space-y-4">
-              {/* Product and Location Selectors */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Searchable Product Type Selector */}
-                <div className="space-y-1 relative" ref={productPickerRef}>
-                  <Label className="text-xs font-semibold">
-                    Tipo de Producto
-                  </Label>
-                  <button
-                    type="button"
-                    onClick={() => setIsProductPickerOpen((prev) => !prev)}
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 min-h-[40px] text-left"
-                    aria-expanded={isProductPickerOpen}
-                    aria-label="Seleccionar y buscar tipo de producto"
-                  >
-                    <div className="truncate">
-                      <span className="font-semibold text-foreground">
-                        {currentItem?.name || "Seleccionar..."}
-                      </span>{" "}
-                      <span className="text-muted-foreground font-mono text-[11px]">
-                        ({currentItem?.sku})
-                      </span>
-                    </div>
-                    <Search className="h-4 w-4 shrink-0 opacity-50 ml-2" />
-                  </button>
-
-                  {/* Dropdown with live search filter */}
-                  {isProductPickerOpen && (
-                    <div className="absolute top-full left-0 z-50 mt-1 w-full sm:w-[320px] rounded-lg border bg-popover p-2 text-popover-foreground shadow-xl">
-                      <div className="relative mb-2">
-                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          value={itemSearchTerm}
-                          onChange={(e) => setItemSearchTerm(e.target.value)}
-                          placeholder="Buscar por nombre, modelo, SKU..."
-                          className="h-8 pl-8 text-xs bg-muted/40"
-                          autoFocus
-                        />
-                        {itemSearchTerm && (
-                          <button
-                            type="button"
-                            onClick={() => setItemSearchTerm("")}
-                            className="absolute right-2 top-2 text-muted-foreground hover:text-foreground text-xs"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="max-h-52 overflow-y-auto space-y-1 text-xs">
-                        {filteredItemsForSelect.length === 0 ? (
-                          <div className="p-3 text-center text-muted-foreground text-xs">
-                            No se encontraron productos coincidentes.
-                          </div>
-                        ) : (
-                          filteredItemsForSelect.map((i) => {
-                            const isSelected = i.id === selectedItemId;
-                            return (
-                              <button
-                                key={i.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedItemId(i.id);
-                                  setIsProductPickerOpen(false);
-                                  setItemSearchTerm("");
-                                  setSerialNumber("");
-                                  setMacAddress("");
-                                  setIsDuplicateSerial(false);
-                                  setIsDuplicateMac(false);
-                                }}
-                                className={`w-full flex items-center justify-between p-2 rounded-md transition-colors text-left text-xs ${
-                                  isSelected
-                                    ? "bg-primary text-primary-foreground font-semibold"
-                                    : "hover:bg-muted text-foreground"
-                                }`}
-                              >
-                                <div className="truncate pr-2">
-                                  <div className="truncate">{i.name}</div>
-                                  <div
-                                    className={`text-[10px] font-mono ${
-                                      isSelected
-                                        ? "text-primary-foreground/80"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    SKU: {i.sku} • {i.category}
-                                  </div>
-                                </div>
-                                {isSelected && (
-                                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                                )}
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="modal-loc-select" className="text-xs font-semibold">
-                    Ubicación Almacén
-                  </Label>
-                  <Select
-                    value={selectedLocationId}
-                    onValueChange={setSelectedLocationId}
-                  >
-                    <SelectTrigger id="modal-loc-select" className="h-10 text-xs">
-                      <SelectValue placeholder="Almacén de destino..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((loc) => (
-                        <SelectItem key={loc.id} value={loc.id} className="text-xs">
-                          {loc.name} ({loc.type === "crew" ? "Cuadrilla" : "Almacén"})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Dynamic Inputs: Serial & MAC vs Quantity */}
-              {isSerialized ? (
-                <div className="space-y-3 p-4 rounded-xl border bg-muted/20">
-                  {/* Serial Number Field */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="serial-field" className="text-xs font-semibold flex items-center gap-1.5">
-                        <Cpu className="h-3.5 w-3.5 text-primary" />
-                        <span>Número de Serie (SN) *</span>
-                      </Label>
-                      {isCheckingDuplicate ? (
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <Loader2 className="h-2.5 w-2.5 animate-spin" /> Verificando...
-                        </span>
-                      ) : isDuplicateSerial ? (
-                        <Badge variant="destructive" className="text-[10px]">
-                          Serial Duplicado
-                        </Badge>
-                      ) : null}
+                    <Label htmlFor="modal-loc-select" className="text-xs font-semibold">
+                      Ubicación Almacén
+                    </Label>
+                    <Select
+                      value={selectedLocationId}
+                      onValueChange={setSelectedLocationId}
+                    >
+                      <SelectTrigger id="modal-loc-select" className="h-10 text-xs">
+                        <SelectValue placeholder="Almacén de destino..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id} className="text-xs">
+                            {loc.name} ({loc.type === "crew" ? "Cuadrilla" : "Almacén"})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Dynamic Inputs: Serial & MAC vs Quantity */}
+                {isSerialized ? (
+                  <div className="space-y-3 p-4 rounded-xl border bg-muted/20">
+                    {/* Serial Number Field */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="serial-field" className="text-xs font-semibold flex items-center gap-1.5">
+                          <Cpu className="h-3.5 w-3.5 text-primary" />
+                          <span>Número de Serie (SN) *</span>
+                        </Label>
+                        {isCheckingDuplicate ? (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" /> Verificando...
+                          </span>
+                        ) : isDuplicateSerial ? (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Serial Duplicado en Stock
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <Input
+                        id="serial-field"
+                        value={serialNumber}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          setSerialNumber(val);
+                          handleVerifyDuplicates(val, macAddress);
+                        }}
+                        placeholder="Ej. LANLY-ONU-89211 o 48575443..."
+                        className={`h-10 font-mono text-xs uppercase min-h-[44px] ${
+                          isDuplicateSerial ? "border-red-500 focus-visible:ring-red-500 bg-red-500/5" : ""
+                        }`}
+                        autoFocus
+                      />
                     </div>
+
+                    {/* MAC Address Field (for Lanly ONUs & Routers) */}
+                    {requiresMac && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="mac-field" className="text-xs font-semibold flex items-center gap-1.5">
+                            <Wifi className="h-3.5 w-3.5 text-primary" />
+                            <span>Dirección MAC (ONU / Router)</span>
+                          </Label>
+                          {isDuplicateMac && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              MAC Duplicada
+                            </Badge>
+                          )}
+                        </div>
+                        <Input
+                          id="mac-field"
+                          value={macAddress}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase();
+                            setMacAddress(val);
+                            handleVerifyDuplicates(serialNumber, val);
+                          }}
+                          placeholder="Ej. A4:B2:39:10:44:EE"
+                          className={`h-10 font-mono text-xs uppercase min-h-[44px] ${
+                            isDuplicateMac ? "border-red-500 focus-visible:ring-red-500 bg-red-500/5" : ""
+                          }`}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Consumable Quantity Selector */
+                  <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
+                    <Label htmlFor="qty-field" className="text-xs font-semibold">
+                      Cantidad a Ingresar ({currentItem.unit}) *
+                    </Label>
                     <Input
-                      id="serial-field"
-                      value={serialNumber}
+                      id="qty-field"
+                      type="number"
+                      min="1"
+                      value={quantity}
                       onChange={(e) => {
-                        const val = e.target.value.toUpperCase();
-                        setSerialNumber(val);
-                        handleVerifyDuplicates(val, macAddress);
+                        const val = parseInt(e.target.value, 10);
+                        setQuantity(Number.isNaN(val) ? 1 : Math.max(1, val));
                       }}
-                      placeholder="Ej. LANLY-ONU-89211 o 48575443..."
-                      className={`h-10 font-mono text-xs uppercase min-h-[44px] ${
-                        isDuplicateSerial ? "border-red-500 focus-visible:ring-red-500" : ""
-                      }`}
-                      autoFocus
+                      placeholder="Ingrese la cantidad..."
+                      className="h-10 text-left font-mono font-semibold text-sm min-h-[44px]"
+                    />
+                  </div>
+                )}
+
+                {/* Reference & Notes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="ticket-field" className="text-xs font-medium">
+                      Comprobante / N° Factura
+                    </Label>
+                    <Input
+                      id="ticket-field"
+                      value={ticketRef}
+                      onChange={(e) => setTicketRef(e.target.value)}
+                      placeholder="FAC-2026-901"
+                      className="h-9 text-xs min-h-[40px]"
                     />
                   </div>
 
-                  {/* MAC Address Field (for Lanly ONUs & Routers) */}
-                  {requiresMac && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="mac-field" className="text-xs font-semibold flex items-center gap-1.5">
-                          <Wifi className="h-3.5 w-3.5 text-primary" />
-                          <span>Dirección MAC (ONU / Router)</span>
-                        </Label>
-                        {isDuplicateMac && (
-                          <Badge variant="destructive" className="text-[10px]">
-                            MAC Duplicada
-                          </Badge>
-                        )}
-                      </div>
-                      <Input
-                        id="mac-field"
-                        value={macAddress}
-                        onChange={(e) => {
-                          const val = e.target.value.toUpperCase();
-                          setMacAddress(val);
-                          handleVerifyDuplicates(serialNumber, val);
-                        }}
-                        placeholder="Ej. A4:B2:39:10:44:EE"
-                        className={`h-10 font-mono text-xs uppercase min-h-[44px] ${
-                          isDuplicateMac ? "border-red-500 focus-visible:ring-red-500" : ""
-                        }`}
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* Consumable Quantity Selector */
-                <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
-                  <Label htmlFor="qty-field" className="text-xs font-semibold">
-                    Cantidad a Ingresar ({currentItem.unit}) *
-                  </Label>
-                  <Input
-                    id="qty-field"
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setQuantity(Number.isNaN(val) ? 1 : Math.max(1, val));
-                    }}
-                    placeholder="Ingrese la cantidad..."
-                    className="h-10 text-left font-mono font-semibold text-sm min-h-[44px]"
-                  />
-                </div>
-              )}
-
-              {/* Reference & Notes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="ticket-field" className="text-xs">
-                    Comprobante / N° Factura
-                  </Label>
-                  <Input
-                    id="ticket-field"
-                    value={ticketRef}
-                    onChange={(e) => setTicketRef(e.target.value)}
-                    placeholder="FAC-2026-901"
-                    className="h-9 text-xs min-h-[40px]"
-                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="notes-field" className="text-xs font-medium">
+                      Notas de Recepción
+                    </Label>
+                    <Input
+                      id="notes-field"
+                      value={supplierNotes}
+                      onChange={(e) => setSupplierNotes(e.target.value)}
+                      placeholder="Caja sellada / Verificado"
+                      className="h-9 text-xs min-h-[40px]"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="notes-field" className="text-xs">
-                    Notas de Recepción
-                  </Label>
-                  <Input
-                    id="notes-field"
-                    value={supplierNotes}
-                    onChange={(e) => setSupplierNotes(e.target.value)}
-                    placeholder="Caja sellada / Verificado"
-                    className="h-9 text-xs min-h-[40px]"
-                  />
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="min-h-[44px] text-xs"
-                >
-                  Finalizar Sesión
-                </Button>
-
-                <Button
-                  type="submit"
-                  disabled={
-                    isSubmitting ||
-                    (isSerialized && !serialNumber.trim()) ||
-                    isDuplicateSerial
-                  }
-                  className="min-h-[44px] px-6 font-semibold text-xs gap-2 bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Guardando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4" />
-                      <span>
-                        {isSerialized
-                          ? "Registrar e Ir al Siguiente (+1)"
-                          : `Registrar Entrada (+${quantity} ${currentItem.unit})`}
+                {/* Mini Preview de Pendientes dentro de la vista formulario si los hay */}
+                {pendingDrafts.length > 0 && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Inbox className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-xs font-medium text-foreground">
+                        Hay <strong>{pendingDrafts.length}</strong> {pendingDrafts.length === 1 ? "equipo detectado" : "equipos detectados"} en espera.
                       </span>
-                    </>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      onClick={() => setActiveRightTab("drafts")}
+                      className="text-xs text-amber-600 dark:text-amber-400 p-0 h-auto font-semibold"
+                    >
+                      Ver todos ({pendingDrafts.length}) →
+                    </Button>
+                  </div>
+                )}
+
+                {/* Submit Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    className="min-h-[44px] text-xs"
+                  >
+                    Finalizar Sesión
+                  </Button>
+
+                  <Button
+                    type="submit"
+                    disabled={
+                      isSubmitting ||
+                      (isSerialized && !serialNumber.trim()) ||
+                      isDuplicateSerial
+                    }
+                    className="min-h-[44px] px-6 font-semibold text-xs gap-2 bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        <span>
+                          {isSerialized
+                            ? "Registrar e Ir al Siguiente (+1)"
+                            : `Registrar Entrada (+${quantity} ${currentItem.unit})`}
+                        </span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 2: LISTA EXTENDIDA DE EQUIPOS PENDIENTES (DRAFTS) */}
+            {activeRightTab === "drafts" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Inbox className="h-4 w-4 text-primary" />
+                      <span>Equipos Escaneados por el Teléfono ({pendingDrafts.length})</span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Cada captura tomada en el móvil se lista aquí. Puedes ingresarlos individualmente o descartarlos.
+                    </p>
+                  </div>
+
+                  {pendingDrafts.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPendingDrafts([])}
+                      className="text-xs h-8 text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Limpiar cola
+                    </Button>
                   )}
-                </Button>
+                </div>
+
+                {pendingDrafts.length === 0 ? (
+                  <div className="p-8 text-center rounded-xl border-2 border-dashed bg-muted/20 space-y-2">
+                    <Smartphone className="h-8 w-8 text-muted-foreground mx-auto" />
+                    <p className="text-xs font-semibold text-foreground">No hay equipos en cola</p>
+                    <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                      Toma fotos desde tu teléfono vinculado; los seriales y MACs detectados aparecerán en este listado automáticamente.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                    {pendingDrafts.map((draft, idx) => (
+                      <div
+                        key={draft.id}
+                        className="p-3 rounded-xl border bg-card hover:bg-muted/40 transition-colors flex items-center justify-between gap-3 shadow-sm"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Miniatura foto */}
+                          {draft.imageUrl ? (
+                            <div className="h-12 w-12 rounded-lg border bg-black overflow-hidden flex-shrink-0 shadow-inner">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={draft.imageUrl}
+                                alt="Foto equipo"
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="h-12 w-12 rounded-lg border bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                              <Cpu className="h-5 w-5" />
+                            </div>
+                          )}
+
+                          {/* Info producto y seriales */}
+                          <div className="truncate text-left space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-foreground truncate">
+                                {draft.itemName}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] font-mono">
+                                #{idx + 1}
+                              </Badge>
+                              {draft.isDuplicate && (
+                                <Badge variant="destructive" className="text-[9px] px-1 py-0">
+                                  Duplicado
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 font-mono text-xs">
+                              <span className="text-primary font-bold">
+                                SN: {draft.serialNumber}
+                              </span>
+                              {draft.macAddress && (
+                                <span className="text-muted-foreground text-[11px]">
+                                  MAC: {draft.macAddress}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botones de acción */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPendingDrafts((prev) => prev.filter((p) => p.id !== draft.id))}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            title="Descartar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSerialNumber(draft.serialNumber);
+                              if (draft.macAddress) setMacAddress(draft.macAddress);
+                              if (draft.matchedItemId) setSelectedItemId(draft.matchedItemId);
+                              handleVerifyDuplicates(draft.serialNumber, draft.macAddress || macAddress);
+                              setActiveRightTab("form");
+                            }}
+                            className="h-8 px-2.5 text-xs gap-1"
+                          >
+                            <span>Editar</span>
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isSubmitting || draft.isDuplicate}
+                            onClick={() => {
+                              handleSaveProduct(undefined, {
+                                itemId: draft.matchedItemId,
+                                serialNumber: draft.serialNumber,
+                                macAddress: draft.macAddress,
+                              });
+                            }}
+                            className="h-8 px-3 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Registrar</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </form>
+            )}
+
+            {/* TAB 3: HISTORIAL DE REGISTROS EN ESTE LOTE */}
+            {activeRightTab === "history" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <History className="h-4 w-4 text-emerald-500" />
+                      <span>Equipos Registrados en esta Sesión ({registeredBatch.length})</span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Mostrando los ingresos procesados y guardados en la base de datos durante este lote.
+                    </p>
+                  </div>
+                </div>
+
+                {registeredBatch.length === 0 ? (
+                  <div className="p-8 text-center rounded-xl border-2 border-dashed bg-muted/20 space-y-2">
+                    <FileCheck className="h-8 w-8 text-muted-foreground mx-auto" />
+                    <p className="text-xs font-semibold text-foreground">Aún no se han registrado equipos</p>
+                    <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                      A medida que confirmes los equipos mediante el botón de registro, aparecerán listados aquí con su número de comprobante.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                    {registeredBatch.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="p-3 rounded-xl border bg-card flex items-center justify-between gap-3 shadow-sm"
+                      >
+                        <div className="truncate text-left space-y-1">
+                          <div className="font-semibold text-foreground text-xs truncate">
+                            {entry.itemName}
+                          </div>
+                          <div className="font-mono text-xs text-muted-foreground flex items-center gap-2">
+                            <span>{entry.serialNumber ? `SN: ${entry.serialNumber}` : `Cantidad: +${entry.quantity}`}</span>
+                            {entry.macAddress && <span>• MAC: {entry.macAddress}</span>}
+                          </div>
+                        </div>
+
+                        <div className="text-right flex-shrink-0 space-y-1">
+                          <Badge variant="success" className="text-xs px-2 py-0.5 font-mono">
+                            {entry.documentNumber}
+                          </Badge>
+                          <div className="text-[10px] text-muted-foreground">{entry.time}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
