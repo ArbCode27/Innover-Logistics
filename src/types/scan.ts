@@ -23,6 +23,7 @@ export interface ExtractedLabelData {
   brand?: string;
   model?: string;
   serial_number?: string;
+  pon_sn?: string;
   mac_address?: string;
   suggested_sku?: string;
   suggested_name?: string;

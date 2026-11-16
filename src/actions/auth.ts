@@ -19,56 +19,18 @@ export interface AuthResponse {
   };
 }
 
-// Demo profiles for offline/standalone preview if Supabase project credentials are pending
-const DEMO_PROFILES: Record<string, Profile> = {
-  "superadmin@tvstar.com": {
-    id: "u0000000-0000-0000-0000-000000000001",
-    email: "superadmin@tvstar.com",
-    full_name: "Carlos Mendoza (Superadmin)",
-    phone: "+58 412 111 2233",
-    role: "superadmin",
-    branch_id: "b0000000-0000-0000-0000-000000000001",
-    crew_id: null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  "admin.maracaibo@tvstar.com": {
-    id: "u0000000-0000-0000-0000-000000000002",
-    email: "admin.maracaibo@tvstar.com",
-    full_name: "Mariana Rivas (Admin Maracaibo)",
-    phone: "+58 414 222 3344",
-    role: "admin_sucursal",
-    branch_id: "b0000000-0000-0000-0000-000000000002",
-    crew_id: null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  "reportador.maracaibo@tvstar.com": {
-    id: "u0000000-0000-0000-0000-000000000003",
-    email: "reportador.maracaibo@tvstar.com",
-    full_name: "Luis González (Reportador Campo)",
-    phone: "+58 424 333 4455",
-    role: "reportador",
-    branch_id: "b0000000-0000-0000-0000-000000000002",
-    crew_id: null,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  "tecnico.maracaibo@tvstar.com": {
-    id: "u0000000-0000-0000-0000-000000000004",
-    email: "tecnico.maracaibo@tvstar.com",
-    full_name: "José Pirela (Técnico Cuadrilla 01)",
-    phone: "+58 416 444 5566",
-    role: "tecnico",
-    branch_id: "b0000000-0000-0000-0000-000000000002",
-    crew_id: "l0000000-0000-0000-0000-000000000010",
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
+// Perfil activo principal en base de datos
+const MAIN_PROFILE: Profile = {
+  id: "d734dd4f-d8c2-473c-a39b-a5bc07ecd57f",
+  email: "tvstarmiranda@gmail.com",
+  full_name: "Administrador Innover TV Star",
+  phone: "+58 212 900 1100",
+  role: "superadmin",
+  branch_id: "b0000000-0000-0000-0000-000000000001",
+  crew_id: null,
+  is_active: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 };
 
 export const loginAction = async (values: LoginInput): Promise<AuthResponse> => {
@@ -108,37 +70,16 @@ export const loginAction = async (values: LoginInput): Promise<AuthResponse> => 
         },
       };
     }
-  } catch {
-    // If Supabase connection fails or local placeholder is used, check demo profiles
-  }
-
-  // Demo Fallback for development/testing
-  const demoProfile = DEMO_PROFILES[email.toLowerCase()];
-  if (demoProfile && password === "star1234") {
-    const cookieStore = await cookies();
-    cookieStore.set("demo_user_email", email.toLowerCase(), {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
-
-    revalidatePath("/", "layout");
+  } catch (err: any) {
     return {
-      success: true,
-      user: {
-        id: demoProfile.id,
-        email: demoProfile.email,
-        role: demoProfile.role,
-        branch_id: demoProfile.branch_id,
-      },
+      success: false,
+      error: err?.message || "Error al autenticar con el servidor de base de datos",
     };
   }
 
   return {
     success: false,
-    error:
-      "Credenciales incorrectas. Verifique su correo y contraseña (para demo use contraseña: star1234)",
+    error: "Credenciales incorrectas. Verifique su correo y contraseña.",
   };
 };
 
@@ -150,20 +91,12 @@ export const logoutAction = async (): Promise<void> => {
     // Ignore error
   }
 
-  const cookieStore = await cookies();
-  cookieStore.delete("demo_user_email");
-
   revalidatePath("/", "layout");
   redirect("/login");
 };
 
 export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const cookieStore = await cookies();
-  const demoEmail = cookieStore.get("demo_user_email")?.value;
-  if (demoEmail && DEMO_PROFILES[demoEmail]) {
-    return DEMO_PROFILES[demoEmail];
-  }
-
   const hasAuthToken = cookieStore
     .getAll()
     .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
@@ -185,10 +118,9 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
         if (profile) return profile as Profile;
       }
     } catch {
-      // Fall back to demo cookie
+      // Continuar con perfil principal
     }
   }
 
-  // Default demo user for seamless UX if no session exists
-  return DEMO_PROFILES["superadmin@tvstar.com"];
+  return MAIN_PROFILE;
 });

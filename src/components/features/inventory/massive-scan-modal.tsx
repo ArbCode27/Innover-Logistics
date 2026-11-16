@@ -35,6 +35,7 @@ import {
   FileCheck,
   FileText,
   Lock,
+  ListPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -458,6 +459,51 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
   React.useEffect(() => {
     applyRemoteDataRef.current = handleApplyRemoteData;
   });
+
+  // Agregar manualmente el equipo tipeado en los inputs a la lista de borradores pendientes
+  const handleAddManualToDrafts = async (): Promise<void> => {
+    const cleanSn = serialNumber.trim().toUpperCase();
+    const cleanMac = macAddress.trim().toUpperCase();
+
+    if (!cleanSn) {
+      toast.error("Ingrese el Número de Serie (SN) antes de agregar a la lista");
+      return;
+    }
+
+    if (isDuplicateSerial) {
+      toast.error("El serial ya está registrado como duplicado en stock");
+      return;
+    }
+
+    // Verificar si ya está en la lista de borradores pendientes
+    if (pendingDrafts.some((d) => d.serialNumber.toUpperCase() === cleanSn)) {
+      toast.warning(`El serial ${cleanSn} ya se encuentra en la lista de espera`);
+      return;
+    }
+
+    const isDup = await handleVerifyDuplicates(cleanSn, cleanMac);
+
+    const manualDraft: PendingScanDraft = {
+      id: crypto.randomUUID(),
+      serialNumber: cleanSn,
+      macAddress: cleanMac || undefined,
+      matchedItemId: currentItem.id,
+      itemName: currentItem.name,
+      sku: currentItem.sku,
+      timestamp: Date.now(),
+      isDuplicate: isDup,
+    };
+
+    setPendingDrafts((prev) => [manualDraft, ...prev]);
+    playSuccessFeedback();
+    toast.success(`Equipo ${cleanSn} agregado a la lista de espera (${pendingDrafts.length + 1} en cola)`);
+
+    // Limpiar inputs para permitir ingresar el siguiente equipo de inmediato
+    setSerialNumber("");
+    setMacAddress("");
+    setIsDuplicateSerial(false);
+    setIsDuplicateMac(false);
+  };
 
   // Supabase Realtime channel for Phone Sync
   React.useEffect(() => {
@@ -1302,6 +1348,21 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                         />
                       </div>
                     )}
+
+                    {/* Botón para agregar manualmente a la lista de espera */}
+                    <div className="pt-1 flex items-center justify-end">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleAddManualToDrafts}
+                        disabled={!serialNumber.trim() || isDuplicateSerial}
+                        className="h-9 px-3.5 text-xs font-semibold gap-1.5 shadow-sm border hover:bg-secondary/80"
+                      >
+                        <ListPlus className="h-4 w-4 text-primary" />
+                        <span>Agregar a la lista</span>
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   /* Consumable Quantity Selector */

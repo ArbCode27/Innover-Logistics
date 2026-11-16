@@ -35,8 +35,8 @@ export default function LoginPage() {
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "superadmin@tvstar.com",
-      password: "star1234",
+      email: "tvstarmiranda@gmail.com",
+      password: "",
     },
   });
 
@@ -66,12 +66,6 @@ export default function LoginPage() {
       toast.error("Error al conectar con el servidor");
       setIsSubmitting(false);
     }
-  };
-
-  const handleSelectRolePreset = (email: string): void => {
-    setValue("email", email, { shouldValidate: true });
-    setValue("password", "star1234", { shouldValidate: true });
-    setAuthError(null);
   };
 
   return (
@@ -189,68 +183,18 @@ export default function LoginPage() {
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-3 border-t border-slate-800/80 pt-4">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <UserCheck className="h-3.5 w-3.5 text-blue-400" />
-              <span>Acceso rápido por perfil de prueba:</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 w-full">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-800 hover:text-white justify-start"
-                onClick={() => handleSelectRolePreset("superadmin@tvstar.com")}
-              >
-                <Badge variant="default" className="mr-1 text-[10px] py-0 px-1">
-                  Global
-                </Badge>
+            <div className="flex items-center justify-between w-full text-xs text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <UserCheck className="h-3.5 w-3.5 text-blue-400" />
+                <span>Credenciales autorizadas de producción:</span>
+              </span>
+              <Badge variant="outline" className="text-[10px] text-slate-300 border-slate-700">
                 Superadmin
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-800 hover:text-white justify-start"
-                onClick={() =>
-                  handleSelectRolePreset("admin.maracaibo@tvstar.com")
-                }
-              >
-                <Badge variant="info" className="mr-1 text-[10px] py-0 px-1">
-                  Sede
-                </Badge>
-                Admin Sucursal
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-800 hover:text-white justify-start"
-                onClick={() =>
-                  handleSelectRolePreset("reportador.maracaibo@tvstar.com")
-                }
-              >
-                <Badge variant="warning" className="mr-1 text-[10px] py-0 px-1">
-                  Campo
-                </Badge>
-                Reportador
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-800 hover:text-white justify-start"
-                onClick={() =>
-                  handleSelectRolePreset("tecnico.maracaibo@tvstar.com")
-                }
-              >
-                <Badge variant="success" className="mr-1 text-[10px] py-0 px-1">
-                  OT
-                </Badge>
-                Técnico Cuadrilla
-              </Button>
+              </Badge>
+            </div>
+            <div className="w-full p-2.5 rounded-lg border border-slate-800 bg-slate-950/50 text-xs text-slate-300 font-mono flex items-center justify-between">
+              <span>tvstarmiranda@gmail.com</span>
+              <span className="text-slate-500">••••••••</span>
             </div>
           </CardFooter>
         </Card>

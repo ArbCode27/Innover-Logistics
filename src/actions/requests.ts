@@ -19,52 +19,7 @@ export interface MaterialRequestWithDetails extends MaterialRequest {
   crew_name: string;
 }
 
-let demoRequests: MaterialRequestWithDetails[] = [
-  {
-    id: "req-001",
-    request_number: "SOL-MAR-000108",
-    branch_id: "b0000000-0000-0000-0000-000000000002",
-    requester_id: "u0000000-0000-0000-0000-000000000004",
-    crew_location_id: "l0000000-0000-0000-0000-000000000010",
-    item_id: "i0000000-0000-0000-0000-000000000004",
-    quantity: 10,
-    status: "REQUESTED",
-    ticket_ref: "PROY-AMPL-2026",
-    notes: "Se requieren ONUs para jornada de instalaciones del fin de semana",
-    assigned_document_id: null,
-    approved_by: null,
-    approved_at: null,
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    item_name: "ONU GPON Huawei EchoLife HG8310M",
-    item_sku: "ONU-HUA-8310",
-    item_unit: "unidades",
-    requester_name: "José Pirela",
-    crew_name: "Cuadrilla 01 FTTH Maracaibo Norte",
-  },
-  {
-    id: "req-002",
-    request_number: "SOL-MAR-000107",
-    branch_id: "b0000000-0000-0000-0000-000000000002",
-    requester_id: "u0000000-0000-0000-0000-000000000004",
-    crew_location_id: "l0000000-0000-0000-0000-000000000010",
-    item_id: "i0000000-0000-0000-0000-000000000001",
-    quantity: 500,
-    status: "APPROVED",
-    ticket_ref: "AV-44910",
-    notes: "Reparación de acometidas dañadas por tormenta",
-    assigned_document_id: null,
-    approved_by: "u0000000-0000-0000-0000-000000000002",
-    approved_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    created_at: new Date(Date.now() - 3600000 * 26).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    item_name: "Cable Fibra Óptica Drop 1 Hilo G.657A2",
-    item_sku: "FIB-DRP-001",
-    item_unit: "metros",
-    requester_name: "José Pirela",
-    crew_name: "Cuadrilla 01 FTTH Maracaibo Norte",
-  },
-];
+let demoRequests: MaterialRequestWithDetails[] = [];
 
 export const createMaterialRequestAction = async (
   values: MaterialRequestInput

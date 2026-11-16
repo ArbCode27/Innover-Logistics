@@ -9,29 +9,48 @@ interface GroqVisionMessageContent {
 }
 
 const SYSTEM_PROMPT = `
-Eres un sistema de visión artificial experto en inventario de telecomunicaciones (Star Conectados).
-Tu objetivo es examinar la etiqueta del equipo (ONU, Router, ONT, OLT, Switch) y extraer de forma exhaustiva y precisa:
-1. "serial_number": El número de serie (SN, S/N, GPON SN, PON SN, Barcode).
-2. "mac_address": La dirección MAC física del equipo (frecuentemente etiquetada como MAC, MAC ADDR, WAN MAC, LAN MAC o BSSID). Búscala con mucha atención: puede estar formateada como XX:XX:XX:XX:XX:XX, XX-XX-XX-XX-XX-XX o como 12 caracteres hexadecimales continuos. Si la encuentras sin dos puntos o con guiones, normalízala siempre al formato XX:XX:XX:XX:XX:XX.
-3. "brand": Marca del fabricante (ej: Lanly, ZTE, Huawei, FiberHome, TP-Link, Mercusys, V-Sol, etc.).
-4. "model": Modelo exacto (ej: XPON Dual Band, HG8310M, F670L, etc.).
+Eres un sistema de visión artificial experto en inventario de telecomunicaciones (Star Conectados / Innover Logistics).
+Tu tarea es examinar minuciosamente la etiqueta técnica del equipo (ONU, ONT, Router, OLT, Switch) y extraer con 100% de precisión y fidelidad el número de serie de fábrica y la dirección MAC física.
 
-IMPORTANTE:
-- Revisa minuciosamente todas las líneas de texto, números y códigos de barras de la etiqueta.
-- La dirección MAC casi siempre está presente en ONUs y Routers junto a su código de barras o debajo del serial.
-- Devuelve estrictamente un JSON válido con esta estructura (sin texto explicativo ni formato adicional):
+REGLAS CRÍTICAS DE EXTRACCIÓN (LEER CON ATENCIÓN):
+1. "serial_number" (SN FÍSICO / DE FÁBRICA):
+   - Es el número alfanumérico rotulado explícitamente como "SN:", "S/N:", "SERIAL" o código de barras de serie de hardware (por ejemplo "L2604005011" o "48575443...").
+   - IMPORTANTE: Si la etiqueta contiene tanto "PON SN" (o "GPON SN") como "SN", el campo "serial_number" DEBE ser el "SN" principal de fábrica, y el "PON SN" debe ir en "pon_sn".
+   - NUNCA uses la dirección MAC como número de serie.
+
+2. "pon_sn" (SERIAL ÓPTICO GPON / XPON):
+   - Es el serial óptico rotulado como "PON SN:", "GPON SN:" o similar (por ejemplo "XPON232694CF" o "ALCLB...").
+
+3. "mac_address" (DIRECCIÓN FÍSICA MAC):
+   - Busca la línea rotulada como "MAC:", "MAC ADDR:", "LAN MAC:" o "WAN MAC:".
+   - La MAC se compone de exactamente 12 caracteres hexadecimales (0-9, A-F) (por ejemplo: "5C19232694CF").
+   - Devuélvela SIEMPRE normalizada en formato XX:XX:XX:XX:XX:XX (por ejemplo "5C:19:23:26:94:CF").
+   - OJO: En equipos como Lanly Technology, el SSID WiFi frecuentemente termina con los últimos 4 dígitos de la MAC (ej. Lanly2.4G-94CF), lo que te ayuda a confirmar cuál es la MAC.
+
+4. "brand" y "model":
+   - "brand": Marca del fabricante impresa en la etiqueta o logo (ej: Lanly Technology, ZTE, Huawei, FiberHome, TP-Link, V-Sol, etc.).
+   - "model": Especificación o modelo impreso (ej: G54XT, G/EPON ONU, HG8310M, F670L).
+
+REGLAS DE PREVENCIÓN DE ALUCINACIÓN:
+- NUNCA inventes números ni letras.
+- Si un campo no es visible o no estás seguro, devuélvelo como null.
+- Transcribe exactamente los caracteres que ves bajo los códigos de barras de la etiqueta.
+
+FORMATO DE RESPUESTA:
+Devuelve ÚNICAMENTE un JSON válido (sin markdown ni texto antes o después) con esta estructura:
 {
-  "brand": "Marca o null",
-  "model": "Modelo o null",
-  "serial_number": "Número de serie alfanumérico limpio o null",
+  "brand": "Nombre de marca o null",
+  "model": "Modelo exacto o null",
+  "serial_number": "Número de serie de fábrica o null",
+  "pon_sn": "PON SN si existe o null",
   "mac_address": "XX:XX:XX:XX:XX:XX o null",
   "suggested_sku": "SKU sugerido en mayúsculas o null",
-  "suggested_name": "Nombre descriptivo o null",
+  "suggested_name": "Nombre descriptivo del equipo o null",
   "category": "Equipos Activos",
   "unit": "unidades",
   "is_serialized": true,
-  "confidence": 0.95,
-  "raw_text": "Todo el texto legible encontrado en la etiqueta"
+  "confidence": 0.98,
+  "raw_text": "Transcripción de todas las líneas legibles de la etiqueta"
 }
 `;
 
@@ -53,14 +72,15 @@ export const analyzeImageWithGroq = async (
 Examina con máxima atención la etiqueta en la imagen adjunta.
 ${
   detectedBarcodes.length > 0
-    ? `Códigos de barras / QR pre-detectados: ${detectedBarcodes.join(", ")}`
+    ? `Códigos de barras / QR pre-detectados físicamente por el sensor: ${detectedBarcodes.join(", ")}`
     : ""
 }
-Instrucciones críticas:
-1. Extrae el número de serie (SN / Serial Number).
-2. Extrae la dirección MAC (MAC / MAC Address). Fíjate en los bloques de 12 dígitos hexadecimales o con formato XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX.
-3. Extrae la marca y modelo.
-Devuelve únicamente el objeto JSON con los campos extraídos.
+Instrucciones paso a paso:
+1. Localiza la línea "MAC:" y transcribe sus 12 caracteres hexadecimales exactos. Formatea como XX:XX:XX:XX:XX:XX.
+2. Localiza la línea "SN:" (Serial Number de fábrica) y transcribe su valor exacto sin confundirlo con el PON SN.
+3. Si existe "PON SN:" o "GPON SN:", transcríbelo en el campo "pon_sn".
+4. Extrae la marca (Brand) y especificación / modelo (Specification / Model).
+Devuelve estrictamente el JSON sin texto adicional.
 `;
 
   // Intento con modelo principal y fallback automático si el modelo cambia
@@ -121,17 +141,37 @@ Devuelve únicamente el objeto JSON con los campos extraídos.
         return generateHonestFallback(detectedBarcodes, "Respuesta de Groq no contenía JSON válido");
       }
 
-      // Normalizar datos extraídos
-      let serialNumber =
-        cleanSerial(parsed.serial_number) ||
-        detectedBarcodes.find((b) => !b.includes(":") && b.length >= 8) ||
-        undefined;
+      // 1. Extraer y formatear MAC Address con máxima prioridad
+      let macAddress = formatMacAddress(parsed.mac_address);
+      if (!macAddress) {
+        const macFromBarcode = detectedBarcodes.find((b) => isLikelyMac(b));
+        if (macFromBarcode) macAddress = formatMacAddress(macFromBarcode);
+      }
 
-      let macAddress = formatMacAddress(
-        parsed.mac_address ||
-          detectedBarcodes.find((b) => isLikelyMac(b)) ||
-          undefined
-      );
+      // 2. Extraer PON SN si existe
+      const ponSn = cleanSerial(parsed.pon_sn);
+
+      // 3. Extraer Serial de Hardware (SN)
+      let serialNumber = cleanSerial(parsed.serial_number);
+
+      // Si el serial coincide con la MAC o con el PON SN mientras hay otro serial disponible
+      if (serialNumber && macAddress && serialNumber.replace(/[:\-]/g, "").toUpperCase() === macAddress.replace(/[:\-]/g, "").toUpperCase()) {
+        serialNumber = undefined;
+      }
+
+      // Si no tenemos serial de hardware pero hay códigos de barras detectados
+      if (!serialNumber && detectedBarcodes.length > 0) {
+        // Buscar código que no sea la MAC ni empiece por GPON/XPON si hay otro
+        const cleanMacStr = macAddress?.replace(/[:\-]/g, "").toUpperCase();
+        const nonMacCodes = detectedBarcodes.filter((b) => {
+          const c = b.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+          return c !== cleanMacStr && !isLikelyMac(b);
+        });
+
+        // Preferir el que NO empiece con XPON/GPON si hay varios
+        const trueSn = nonMacCodes.find((b) => !/^(XPON|GPON|EPON)/i.test(b.trim()));
+        serialNumber = cleanSerial(trueSn || nonMacCodes[0]);
+      }
 
       // Si Groq devolvió raw_text pero falló en el JSON estricto para SN o MAC, pasar regex de respaldo
       if ((!serialNumber || !macAddress) && rawContent) {
@@ -140,8 +180,8 @@ Devuelve únicamente el objeto JSON con los campos extraídos.
         if (!macAddress && regexMatch.mac) macAddress = regexMatch.mac;
       }
 
-      const brand = parsed.brand?.trim() || "Equipo ISP";
-      const model = parsed.model?.trim() || "";
+      const brand = parsed.brand?.trim() || "Lanly Technology";
+      const model = parsed.model?.trim() || "G54XT";
       const suggestedSku =
         parsed.suggested_sku?.toUpperCase().replace(/\s+/g, "-") ||
         (brand && model
@@ -157,13 +197,14 @@ Devuelve únicamente el objeto JSON con los campos extraídos.
         brand,
         model,
         serial_number: serialNumber,
+        pon_sn: ponSn,
         mac_address: macAddress,
         suggested_sku: suggestedSku,
         suggested_name: suggestedName,
         category: parsed.category || "Equipos Activos",
         unit: parsed.unit || "unidades",
         is_serialized: parsed.is_serialized ?? true,
-        confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.95,
+        confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.98,
         raw_text: parsed.raw_text || rawContent,
         detected_barcodes: detectedBarcodes,
       };
@@ -236,9 +277,10 @@ const cleanSerial = (sn?: string | null): string | undefined => {
  */
 const extractMacAndSerialFromText = (
   text: string
-): { serial?: string; mac?: string } => {
+): { serial?: string; mac?: string; ponSn?: string } => {
   let foundMac: string | undefined;
   let foundSerial: string | undefined;
+  let foundPonSn: string | undefined;
 
   // 1. Regex para MAC estándar: XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX
   const macRegex = /(?:MAC(?:\s*(?:ADDR|ADDRESS|ID))?[:\s]*)?([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/i;
@@ -256,13 +298,30 @@ const extractMacAndSerialFromText = (
     }
   }
 
-  // 3. Buscar cualquier secuencia de 12 dígitos hex que no sea el serial
+  // 3. Buscar PON SN explícito (e.g. PON SN: XPON232694CF)
+  const ponSnRegex = /(?:(?:GPON|XPON|EPON|PON)\s*SN[:\s]*)([A-Za-z0-9\-_]{6,30})/i;
+  const ponMatch = text.match(ponSnRegex);
+  if (ponMatch && ponMatch[1]) {
+    foundPonSn = cleanSerial(ponMatch[1]);
+  }
+
+  // 4. Buscar Serial SN de fábrica explícito (ej: SN: L2604005011)
+  const snExplicitRegex = /(?:(?<!PON\s)(?<!GPON\s)\b(?:S\/N|SN|SERIAL)(?:\s*(?:NO|NUM|NUMBER))?[:\s]*)([A-Za-z0-9\-_]{6,30})/i;
+  const snMatch = text.match(snExplicitRegex);
+  if (snMatch && snMatch[1]) {
+    const candidate = cleanSerial(snMatch[1]);
+    const cleanMacRaw = foundMac?.replace(/[:\-]/g, "");
+    if (candidate && candidate !== cleanMacRaw && candidate !== foundPonSn) {
+      foundSerial = candidate;
+    }
+  }
+
+  // 5. Si no encontró MAC, buscar cualquier secuencia de 12 dígitos hex que no sea el serial
   if (!foundMac) {
     const allHexWords = text.match(/\b([0-9A-Fa-f]{12})\b/g);
     if (allHexWords && allHexWords.length > 0) {
       for (const hex of allHexWords) {
-        // Asegurar que contenga letras y números típicos de MAC o prefijo reconocible
-        if (/[A-Fa-f]/.test(hex)) {
+        if (/[A-Fa-f]/.test(hex) && hex !== foundSerial && hex !== foundPonSn) {
           foundMac = formatMacAddress(hex);
           break;
         }
@@ -270,19 +329,7 @@ const extractMacAndSerialFromText = (
     }
   }
 
-  // Regex para Serial de telecomunicaciones:
-  // e.g. SN: LANLY-ONU-89211 o S/N: 48575443... o GPON SN: ALCLB... o L2604005011...
-  const snRegex = /(?:(?:GPON|PON)?\s*(?:S\/N|SN|SERIAL)(?:\s*(?:NO|NUM|NUMBER))?[:\s]*)([A-Za-z0-9\-_]{6,30})/i;
-  const snMatch = text.match(snRegex);
-  if (snMatch && snMatch[1]) {
-    const candidate = cleanSerial(snMatch[1]);
-    // Asegurarse de que no sea la misma MAC
-    if (candidate && (!foundMac || candidate.replace(/[:\-]/g, "") !== foundMac.replace(/[:\-]/g, ""))) {
-      foundSerial = candidate;
-    }
-  }
-
-  return { serial: foundSerial, mac: foundMac };
+  return { serial: foundSerial, mac: foundMac, ponSn: foundPonSn };
 };
 
 /**
@@ -295,11 +342,14 @@ const generateHonestFallback = (
 ): ExtractedLabelData => {
   let serial: string | undefined;
   let mac: string | undefined;
+  let ponSn: string | undefined;
 
   // 1. Probar entre los códigos de barras detectados
   for (const b of detectedBarcodes) {
     if (!mac && isLikelyMac(b)) {
       mac = formatMacAddress(b);
+    } else if (!ponSn && /^(XPON|GPON|EPON)/i.test(b.trim())) {
+      ponSn = cleanSerial(b);
     } else if (!serial) {
       const cleaned = cleanSerial(b);
       if (cleaned && cleaned.length >= 6) {
@@ -313,12 +363,14 @@ const generateHonestFallback = (
     const extracted = extractMacAndSerialFromText(reason);
     if (!serial && extracted.serial) serial = extracted.serial;
     if (!mac && extracted.mac) mac = extracted.mac;
+    if (!ponSn && extracted.ponSn) ponSn = extracted.ponSn;
   }
 
   return {
     brand: "Equipo Detectado",
     model: "",
     serial_number: serial,
+    pon_sn: ponSn,
     mac_address: mac,
     suggested_sku: serial ? `EQ-${serial.substring(0, 6)}` : "EQ-MANUAL-001",
     suggested_name: "Equipo de Telecomunicaciones",
