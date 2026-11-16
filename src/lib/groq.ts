@@ -113,16 +113,23 @@ Responde únicamente con el JSON válido.
       }
 
       // Normalizar datos extraídos
-      const serialNumber =
+      let serialNumber =
         cleanSerial(parsed.serial_number) ||
         detectedBarcodes.find((b) => !b.includes(":") && b.length >= 8) ||
         undefined;
 
-      const macAddress = formatMacAddress(
+      let macAddress = formatMacAddress(
         parsed.mac_address ||
           detectedBarcodes.find((b) => isLikelyMac(b)) ||
           undefined
       );
+
+      // Si Groq devolvió raw_text pero falló en el JSON estricto para SN o MAC, pasar regex de respaldo
+      if ((!serialNumber || !macAddress) && rawContent) {
+        const regexMatch = extractMacAndSerialFromText(rawContent);
+        if (!serialNumber && regexMatch.serial) serialNumber = regexMatch.serial;
+        if (!macAddress && regexMatch.mac) macAddress = regexMatch.mac;
+      }
 
       const brand = parsed.brand?.trim() || "Equipo ISP";
       const model = parsed.model?.trim() || "";
@@ -197,6 +204,9 @@ const formatMacAddress = (mac?: string): string | undefined => {
   if (mac.includes(":") && mac.length === 17) {
     return mac.toUpperCase();
   }
+  if (mac.includes("-") && mac.length === 17) {
+    return mac.replace(/-/g, ":").toUpperCase();
+  }
   return undefined;
 };
 
@@ -207,23 +217,77 @@ const isLikelyMac = (text: string): boolean => {
 
 const cleanSerial = (sn?: string | null): string | undefined => {
   if (!sn) return undefined;
-  const cleaned = sn.replace(/^(SN|S\/N|SERIAL|GPON\s*SN):?\s*/i, "").trim();
+  const cleaned = sn.replace(/^(SN|S\/N|SERIAL|GPON\s*SN|PON\s*SN):?\s*/i, "").trim();
   return cleaned.length >= 4 ? cleaned : undefined;
 };
 
 /**
- * Fallback honesto: NO inventa seriales ni MACs falsos.
- * Solo usa lo que el sensor de código de barras físico del navegador haya detectado.
+ * Intenta extraer MAC y Serial a partir de texto libre o códigos detectados
+ */
+const extractMacAndSerialFromText = (
+  text: string
+): { serial?: string; mac?: string } => {
+  let foundMac: string | undefined;
+  let foundSerial: string | undefined;
+
+  // Regex para MAC: XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX o 12 hex continuos con prefijo MAC
+  const macRegex = /(?:MAC(?:\s*(?:ADDR|ADDRESS))?[:\s]*)?([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/i;
+  const macMatch = text.match(macRegex);
+  if (macMatch && macMatch[1]) {
+    foundMac = formatMacAddress(macMatch[1]);
+  } else {
+    // Buscar 12 caracteres hex precedidos de "MAC"
+    const macPlainRegex = /MAC[:\s]*([0-9A-Fa-f]{12})/i;
+    const plainMatch = text.match(macPlainRegex);
+    if (plainMatch && plainMatch[1]) {
+      foundMac = formatMacAddress(plainMatch[1]);
+    }
+  }
+
+  // Regex para Serial de telecomunicaciones:
+  // e.g. SN: LANLY-ONU-89211 o S/N: 48575443... o GPON SN: ALCLB...
+  const snRegex = /(?:(?:GPON|PON)?\s*(?:S\/N|SN|SERIAL)(?:\s*(?:NO|NUM|NUMBER))?[:\s]*)([A-Za-z0-9\-_]{6,30})/i;
+  const snMatch = text.match(snRegex);
+  if (snMatch && snMatch[1]) {
+    const candidate = cleanSerial(snMatch[1]);
+    // Asegurarse de que no sea la misma MAC
+    if (candidate && (!foundMac || candidate.replace(/[:\-]/g, "") !== foundMac.replace(/[:\-]/g, ""))) {
+      foundSerial = candidate;
+    }
+  }
+
+  return { serial: foundSerial, mac: foundMac };
+};
+
+/**
+ * Fallback honesto con extracción inteligente por Regex y Códigos de barras:
+ * NO inventa seriales ni MACs falsos.
  */
 const generateHonestFallback = (
   detectedBarcodes: string[],
   reason: string
 ): ExtractedLabelData => {
-  const barcode = detectedBarcodes[0] || "";
-  const macBarcode = detectedBarcodes.find((b) => isLikelyMac(b));
+  let serial: string | undefined;
+  let mac: string | undefined;
 
-  const serial = cleanSerial(barcode) || undefined;
-  const mac = macBarcode ? formatMacAddress(macBarcode) : undefined;
+  // 1. Probar entre los códigos de barras detectados
+  for (const b of detectedBarcodes) {
+    if (!mac && isLikelyMac(b)) {
+      mac = formatMacAddress(b);
+    } else if (!serial) {
+      const cleaned = cleanSerial(b);
+      if (cleaned && cleaned.length >= 6) {
+        serial = cleaned;
+      }
+    }
+  }
+
+  // 2. Si hay texto crudo en la razón, intentar regex
+  if (reason) {
+    const extracted = extractMacAndSerialFromText(reason);
+    if (!serial && extracted.serial) serial = extracted.serial;
+    if (!mac && extracted.mac) mac = extracted.mac;
+  }
 
   return {
     brand: "Equipo Detectado",
@@ -231,12 +295,12 @@ const generateHonestFallback = (
     serial_number: serial,
     mac_address: mac,
     suggested_sku: serial ? `EQ-${serial.substring(0, 6)}` : "EQ-MANUAL-001",
-    suggested_name: "Equipo de Telecomunicaciones (Verificar)",
+    suggested_name: "Equipo de Telecomunicaciones",
     category: "Equipos Activos",
     unit: "unidades",
     is_serialized: true,
     confidence: serial ? 0.7 : 0.0,
-    raw_text: `Extracción automática no disponible: ${reason}. Ingrese los datos manualmente.`,
+    raw_text: reason,
     detected_barcodes: detectedBarcodes,
   };
 };

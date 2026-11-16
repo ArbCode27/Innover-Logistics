@@ -358,6 +358,22 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
         });
       }
 
+      // Detectar códigos de barras físicos en la imagen si el navegador soporta BarcodeDetector nativo
+      let localBarcodes: string[] = [];
+      try {
+        if (typeof window !== "undefined" && "BarcodeDetector" in window) {
+          const barcodeDetector = new (window as any).BarcodeDetector({
+            formats: ["code_128", "code_39", "ean_13", "qr_code", "data_matrix"],
+          });
+          const detected = await barcodeDetector.detect(canvas);
+          if (detected && detected.length > 0) {
+            localBarcodes = detected.map((b: any) => b.rawValue).filter(Boolean);
+          }
+        }
+      } catch (barcodeErr) {
+        console.warn("[BarcodeDetector] No disponible o error:", barcodeErr);
+      }
+
       // Procesar en API de extracción con la imagen en alta definición
       const response = await fetch("/api/scan/analyze", {
         method: "POST",
@@ -366,7 +382,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
           sessionId: token,
           image: dataUrl,
           previewUrl: microThumb,
-          barcodes: [],
+          barcodes: localBarcodes,
         }),
       });
 

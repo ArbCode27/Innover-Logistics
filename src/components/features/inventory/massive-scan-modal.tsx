@@ -26,6 +26,10 @@ import {
   WifiOff,
   Wrench,
   X,
+  Inbox,
+  ArrowRight,
+  Trash2,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -65,6 +69,18 @@ interface RegisteredBatchEntry {
   quantity: number;
   documentNumber: string;
   time: string;
+}
+
+interface PendingScanDraft {
+  id: string;
+  imageUrl?: string;
+  serialNumber: string;
+  macAddress?: string;
+  matchedItemId?: string;
+  itemName: string;
+  sku: string;
+  timestamp: number;
+  isDuplicate?: boolean;
 }
 
 interface MassiveScanModalProps {
@@ -138,6 +154,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
   // Processing & History
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [registeredBatch, setRegisteredBatch] = React.useState<RegisteredBatchEntry[]>([]);
+  const [pendingDrafts, setPendingDrafts] = React.useState<PendingScanDraft[]>([]);
 
   // Find selected item configuration
   const currentItem = React.useMemo(() => {
@@ -368,28 +385,67 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
 
   // Apply data received from Phone or OCR
   const handleApplyRemoteData = React.useCallback(
-    (data: ExtractedLabelData, imageUrl?: string) => {
+    async (data: ExtractedLabelData, imageUrl?: string) => {
       if (imageUrl) setRemoteCapturedImage(imageUrl);
 
-      if (data.serial_number) {
-        setSerialNumber(data.serial_number);
-      }
-      if (data.mac_address) {
-        setMacAddress(data.mac_address);
+      const detectedSn = data.serial_number?.trim() || "";
+      const detectedMac = data.mac_address?.trim() || "";
+
+      // Si no detectó serial ni MAC
+      if (!detectedSn && !detectedMac) {
+        toast.warning(
+          "Foto recibida, pero no se reconoció el código de barras o serial. Enfoca más de cerca o ingresa los datos manualmente."
+        );
+        return;
       }
 
+      // Rellenar formulario activo
+      if (detectedSn) {
+        setSerialNumber(detectedSn);
+      }
+      if (detectedMac) {
+        setMacAddress(detectedMac);
+      }
+
+      let activeItem = currentItem;
       if (data.matched_item_id && items.some((i) => i.id === data.matched_item_id)) {
         setSelectedItemId(data.matched_item_id);
+        const found = items.find((i) => i.id === data.matched_item_id);
+        if (found) activeItem = found;
       }
 
-      if (data.serial_number) {
-        handleVerifyDuplicates(data.serial_number, data.mac_address || macAddress);
+      let isDup = false;
+      if (detectedSn) {
+        isDup = await handleVerifyDuplicates(detectedSn, detectedMac || macAddress);
       }
+
+      // Crear nuevo borrador encolado en la lista de items detectados
+      const newDraft: PendingScanDraft = {
+        id: crypto.randomUUID(),
+        imageUrl: imageUrl,
+        serialNumber: detectedSn,
+        macAddress: detectedMac || undefined,
+        matchedItemId: activeItem.id,
+        itemName: activeItem.name,
+        sku: activeItem.sku,
+        timestamp: Date.now(),
+        isDuplicate: isDup,
+      };
+
+      setPendingDrafts((prev) => {
+        // Evitar duplicar el mismo serial dentro de la lista de borradores pendientes
+        if (detectedSn && prev.some((p) => p.serialNumber === detectedSn)) {
+          return prev;
+        }
+        return [newDraft, ...prev];
+      });
 
       playSuccessFeedback();
-      toast.success("Datos recibidos desde el teléfono");
+      toast.success(
+        `Detectado: ${detectedSn || "Equipo"}${detectedMac ? ` (MAC: ${detectedMac})` : ""} - Agregado a la lista`
+      );
     },
-    [items, macAddress, handleVerifyDuplicates, playSuccessFeedback]
+    [currentItem, items, macAddress, handleVerifyDuplicates, playSuccessFeedback]
   );
 
   const applyRemoteDataRef = React.useRef(handleApplyRemoteData);
@@ -543,18 +599,9 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
 
       const result = await response.json();
       if (result.success && result.data) {
-        const sn = result.data.serial_number || "";
-        const mac = result.data.mac_address || "";
-
-        if (sn) setSerialNumber(sn);
-        if (mac) setMacAddress(mac);
-
-        if (sn || mac) {
-          toast.success("Etiqueta detectada con éxito");
-          await handleVerifyDuplicates(sn || serialNumber, mac || macAddress);
-        } else {
-          toast.info("No se reconoció automáticamente el serial. Puedes ingresarlo manualmente.");
-        }
+        await handleApplyRemoteData(result.data, dataUrl);
+      } else {
+        toast.info("No se reconoció automáticamente el serial. Puedes ingresarlo manualmente.");
       }
     } catch (err: any) {
       toast.error(err.message || "Error al leer etiqueta");
@@ -639,6 +686,10 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
       };
 
       setRegisteredBatch((prev) => [newEntry, ...prev]);
+
+      // Remover de borradores pendientes si el serial registrado estaba en la cola
+      const currentSn = serialNumber.trim().toUpperCase();
+      setPendingDrafts((prev) => prev.filter((d) => d.serialNumber.toUpperCase() !== currentSn));
 
       // Reset serial inputs while maintaining item and location for burst/batch scanning
       setSerialNumber("");
@@ -971,6 +1022,103 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                 <span>Unidad: <strong className="text-foreground uppercase">{currentItem.unit}</strong></span>
               </div>
             </div>
+
+            {/* Pending Scanned Drafts Queue */}
+            {pendingDrafts.length > 0 && (
+              <div className="space-y-2 p-3 bg-primary/5 rounded-xl border border-primary/20">
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+                  <span className="flex items-center gap-1.5 text-primary">
+                    <Inbox className="h-4 w-4" />
+                    <span>Equipos pendientes de registrar ({pendingDrafts.length})</span>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">Click en uno para cargarlo</span>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto rounded-lg border divide-y bg-background text-xs">
+                  {pendingDrafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      onClick={() => {
+                        setSerialNumber(draft.serialNumber);
+                        if (draft.macAddress) setMacAddress(draft.macAddress);
+                        if (draft.matchedItemId) setSelectedItemId(draft.matchedItemId);
+                        handleVerifyDuplicates(draft.serialNumber, draft.macAddress || macAddress);
+                        toast.info(`Cargado: ${draft.serialNumber}`);
+                      }}
+                      className="p-2.5 flex items-center justify-between gap-2.5 hover:bg-muted/60 transition-colors cursor-pointer group"
+                      title="Hacer clic para cargar en el formulario"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {draft.imageUrl ? (
+                          <div className="h-10 w-10 rounded border bg-black overflow-hidden flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={draft.imageUrl}
+                              alt="Foto equipo"
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-10 w-10 rounded border bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                            <Cpu className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="truncate text-left">
+                          <div className="font-semibold text-foreground truncate flex items-center gap-1.5">
+                            <span>{draft.itemName}</span>
+                            {draft.isDuplicate && (
+                              <Badge variant="destructive" className="text-[9px] px-1 py-0">
+                                Duplicado
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="font-mono text-[11px] text-primary font-medium">
+                            SN: {draft.serialNumber}
+                          </div>
+                          {draft.macAddress && (
+                            <div className="font-mono text-[10px] text-muted-foreground">
+                              MAC: {draft.macAddress}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingDrafts((prev) => prev.filter((p) => p.id !== draft.id));
+                          }}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          title="Descartar de la lista"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSerialNumber(draft.serialNumber);
+                            if (draft.macAddress) setMacAddress(draft.macAddress);
+                            if (draft.matchedItemId) setSelectedItemId(draft.matchedItemId);
+                            handleVerifyDuplicates(draft.serialNumber, draft.macAddress || macAddress);
+                          }}
+                          className="h-7 px-2 text-[10px] gap-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                        >
+                          <span>Cargar</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Batch Session History Table */}
             {registeredBatch.length > 0 && (
