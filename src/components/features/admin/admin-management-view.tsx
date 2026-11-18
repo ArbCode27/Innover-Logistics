@@ -372,29 +372,59 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Código</TableHead>
-                      <TableHead>Nombre</TableHead>
+                      <TableHead>Nombre / Ubicación</TableHead>
+                      <TableHead>Tipo / Dependencia</TableHead>
                       <TableHead>Dirección / Teléfono</TableHead>
                       <TableHead className="text-center">Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {branches.map((b) => (
-                      <TableRow key={b.id}>
-                        <TableCell className="font-mono font-bold text-xs">
-                          {b.code}
-                        </TableCell>
-                        <TableCell className="font-semibold text-sm">
-                          {b.name}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          <div>{b.address || "Sin dirección"}</div>
-                          <div>{b.phone}</div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="success">Operativa</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {branches.map((b) => {
+                      const parent = branches.find((p) => p.id === b.parent_branch_id);
+                      return (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-mono font-bold text-xs">
+                            {b.code}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-semibold text-sm">{b.name}</div>
+                            {(b.state || b.municipality) && (
+                              <div className="text-xs text-muted-foreground">
+                                {b.municipality ? `${b.municipality}, ` : ""}{b.state || ""}
+                                {b.franchise_name ? ` • ${b.franchise_name}` : ""}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {b.is_main ? (
+                              <Badge variant="default" className="bg-primary/90 text-xs">
+                                Matriz Principal
+                              </Badge>
+                            ) : parent ? (
+                              <div className="space-y-0.5">
+                                <Badge variant="secondary" className="text-xs">
+                                  Sede Hija
+                                </Badge>
+                                <div className="text-[11px] text-muted-foreground">
+                                  Matriz: {parent.name}
+                                </div>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                Sucursal
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            <div>{b.address || "Sin dirección"}</div>
+                            <div>{b.phone}</div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="success">Operativa</Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

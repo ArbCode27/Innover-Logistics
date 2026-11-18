@@ -57,6 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { DocumentVoucherModal } from "@/components/features/history/document-voucher-modal";
 import type { MovementType, UserRole } from "@/types/inventory";
 
 interface HistoryLedgerViewProps {
@@ -78,6 +79,10 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
   const [cancellationReason, setCancellationReason] =
     React.useState<string>("");
   const [isVoiding, setIsVoiding] = React.useState<boolean>(false);
+  const [viewVoucherDoc, setViewVoucherDoc] = React.useState<{
+    docId: string;
+    docNumber: string;
+  } | null>(null);
 
   const filteredMovements = initialMovements.filter((m) => {
     const matchesSearch =
@@ -258,7 +263,20 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
                 return (
                   <TableRow key={mov.id}>
                     <TableCell className="font-mono font-bold text-xs">
-                      {mov.doc_number}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() =>
+                          setViewVoucherDoc({
+                            docId: mov.document_id,
+                            docNumber: mov.doc_number,
+                          })
+                        }
+                        className="p-0 h-auto font-mono font-bold text-xs text-primary hover:underline"
+                        title="Ver comprobante oficial e imprimir"
+                      >
+                        {mov.doc_number}
+                      </Button>
                     </TableCell>
                     <TableCell>{getMovementBadge(mov.movement_type)}</TableCell>
                     <TableCell>
@@ -292,23 +310,40 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
                     </TableCell>
                     {["superadmin", "admin_sucursal"].includes(userRole) && (
                       <TableCell className="text-center">
-                        {mov.movement_type !== "void" && (
+                        <div className="flex items-center justify-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() =>
-                              handleOpenVoidModal(
-                                mov.document_id,
-                                mov.doc_number
-                              )
+                              setViewVoucherDoc({
+                                docId: mov.document_id,
+                                docNumber: mov.doc_number,
+                              })
                             }
-                            className="text-xs text-muted-foreground hover:text-destructive h-8 px-2 min-h-[36px]"
-                            title="Anular documento con contra-asiento"
+                            className="text-xs text-muted-foreground hover:text-primary h-8 px-2 min-h-[36px]"
+                            title="Ver Comprobante Oficial"
                           >
-                            <Ban className="h-3.5 w-3.5 mr-1" />
-                            Anular
+                            <FileText className="h-3.5 w-3.5 mr-1" />
+                            PDF
                           </Button>
-                        )}
+                          {mov.movement_type !== "void" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                handleOpenVoidModal(
+                                  mov.document_id,
+                                  mov.doc_number
+                                )
+                              }
+                              className="text-xs text-muted-foreground hover:text-destructive h-8 px-2 min-h-[36px]"
+                              title="Anular documento con contra-asiento"
+                            >
+                              <Ban className="h-3.5 w-3.5 mr-1" />
+                              Anular
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -379,6 +414,13 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Official Voucher Print/PDF Dialog */}
+      <DocumentVoucherModal
+        documentId={viewVoucherDoc?.docId || null}
+        docNumber={viewVoucherDoc?.docNumber || null}
+        onClose={() => setViewVoucherDoc(null)}
+      />
     </div>
   );
 };

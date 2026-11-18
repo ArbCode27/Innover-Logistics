@@ -109,3 +109,37 @@ export const voidDocumentAction = async (
 
   return { success: true, data: { status: "CANCELLED" } };
 };
+
+export const getDocumentVoucherDetails = async (
+  documentId: string
+): Promise<DocumentWithDetails | null> => {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("documents")
+      .select(
+        `
+        *,
+        branch:branches(*),
+        creator:profiles(*),
+        origin_location:locations!documents_origin_location_id_fkey(*),
+        destination_location:locations!documents_destination_location_id_fkey(*),
+        lines:document_lines(
+          *,
+          item:items(*),
+          serial_unit:serial_units(*)
+        )
+      `
+      )
+      .eq("id", documentId)
+      .single();
+
+    if (!error && data) {
+      return data as unknown as DocumentWithDetails;
+    }
+  } catch {
+    // Demo fallback
+  }
+
+  return null;
+};

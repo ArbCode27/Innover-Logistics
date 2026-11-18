@@ -81,7 +81,7 @@ const NAV_ITEMS: NavItem[] = [
     title: "Historial & Ledger",
     href: "/historial",
     icon: History,
-    roles: ["superadmin", "admin_sucursal"],
+    roles: ["superadmin", "admin_sucursal", "reportador"],
   },
   {
     title: "Administración",

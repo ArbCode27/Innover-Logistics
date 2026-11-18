@@ -70,6 +70,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { DocumentVoucherModal } from "@/components/features/history/document-voucher-modal";
+import { Printer } from "lucide-react";
 import type {
   DocumentWithDetails,
   Item,
@@ -141,6 +143,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
   const [filterSearch, setFilterSearch] = React.useState<string>("");
   const [filterWorkType, setFilterWorkType] = React.useState<string>("all");
   const [selectedDocDetails, setSelectedDocDetails] = React.useState<DocumentWithDetails | null>(null);
+  const [printVoucherId, setPrintVoucherId] = React.useState<string | null>(null);
 
   // Fecha de hoy por defecto (YYYY-MM-DD)
   const todayStr = React.useMemo(() => {
@@ -903,12 +906,23 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
         <Dialog open={!!selectedDocDetails} onOpenChange={() => setSelectedDocDetails(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="flex items-center justify-between text-lg">
-                <span>Nota de Entrega: {selectedDocDetails.delivery_note_number}</span>
-                <Badge variant="outline" className="font-mono text-xs">
-                  {selectedDocDetails.document_number}
-                </Badge>
-              </DialogTitle>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  <span>Nota de Entrega: {selectedDocDetails.delivery_note_number}</span>
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {selectedDocDetails.document_number}
+                  </Badge>
+                </DialogTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPrintVoucherId(selectedDocDetails.id)}
+                  className="gap-1.5 text-xs h-8 mr-6"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Imprimir Comprobante Oficial
+                </Button>
+              </div>
               <DialogDescription className="text-xs">
                 Emisión registrada el {formatDate(selectedDocDetails.created_at)} por{" "}
                 <strong>{selectedDocDetails.creator?.full_name || "Sistema"}</strong>
@@ -993,6 +1007,13 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Official Voucher Print Dialog */}
+      <DocumentVoucherModal
+        documentId={printVoucherId}
+        docNumber={null}
+        onClose={() => setPrintVoucherId(null)}
+      />
     </div>
   );
 };

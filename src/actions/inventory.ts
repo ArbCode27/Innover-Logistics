@@ -1,6 +1,7 @@
 "use server";
 
 import { cache } from "react";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
 import type {

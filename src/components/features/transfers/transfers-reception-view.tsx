@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { DocumentVoucherModal } from "@/components/features/history/document-voucher-modal";
+import { Printer } from "lucide-react";
 import type { DocumentWithDetails, UserRole } from "@/types/inventory";
 
 interface TransfersReceptionViewProps {
@@ -69,6 +71,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
   const [receptionNotes, setReceptionNotes] = React.useState<string>("");
   const [isProcessing, setIsProcessing] = React.useState<boolean>(false);
   const [searchTerm, setSearchTerm] = React.useState<string>("");
+  const [printTransferId, setPrintTransferId] = React.useState<string | null>(null);
 
   const handleOpenDetails = (doc: DocumentWithDetails): void => {
     setSelectedTransfer(doc);
@@ -373,13 +376,24 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
           )}
 
           <DialogFooter className="flex items-center justify-between gap-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setSelectedTransfer(null)}
-              disabled={isProcessing}
-            >
-              Cerrar
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedTransfer(null)}
+                disabled={isProcessing}
+              >
+                Cerrar
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPrintTransferId(selectedTransfer?.id || null)}
+                className="gap-1.5 text-xs h-9"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir Guía Oficial
+              </Button>
+            </div>
 
             {selectedTransfer?.status === "PENDING" && (
               <div className="flex items-center gap-2">
@@ -405,6 +419,13 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Official Voucher Print Dialog */}
+      <DocumentVoucherModal
+        documentId={printTransferId}
+        docNumber={null}
+        onClose={() => setPrintTransferId(null)}
+      />
     </div>
   );
 };

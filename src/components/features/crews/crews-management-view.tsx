@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { assignStockToCrewAction } from "@/actions/crews";
+import { assignStockToCrewAction, createCrewLocationAction } from "@/actions/crews";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,6 +78,11 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
   );
   const [isAssignModalOpen, setIsAssignModalOpen] =
     React.useState<boolean>(false);
+  const [isCreateCrewOpen, setIsCreateCrewOpen] =
+    React.useState<boolean>(false);
+  const [newCrewName, setNewCrewName] = React.useState<string>("");
+  const [newCrewCode, setNewCrewCode] = React.useState<string>("");
+  const [isCreatingCrew, setIsCreatingCrew] = React.useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
 
   // Assignment form state
@@ -165,13 +170,23 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
         </div>
 
         {["superadmin", "admin_sucursal"].includes(userRole) && (
-          <Button
-            onClick={() => setIsAssignModalOpen(true)}
-            className="gap-2 font-semibold shadow-sm min-h-[44px]"
-          >
-            <PackagePlus className="h-4 w-4" />
-            Asignar Material a Cuadrilla
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateCrewOpen(true)}
+              className="gap-2 font-semibold min-h-[44px]"
+            >
+              <Plus className="h-4 w-4" />
+              Nueva Cuadrilla
+            </Button>
+            <Button
+              onClick={() => setIsAssignModalOpen(true)}
+              className="gap-2 font-semibold shadow-sm min-h-[44px]"
+            >
+              <PackagePlus className="h-4 w-4" />
+              Asignar Material a Cuadrilla
+            </Button>
+          </div>
         )}
       </div>
 
@@ -389,6 +404,115 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Crear Nueva Cuadrilla */}
+      <Dialog open={isCreateCrewOpen} onOpenChange={setIsCreateCrewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Users className="h-5 w-5" />
+              Crear Sub-almacén Móvil / Cuadrilla
+            </DialogTitle>
+            <DialogDescription>
+              Registra un nuevo técnico o vehículo de operaciones para asignarle materiales en campo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newCrewName.trim() || !newCrewCode.trim()) {
+                toast.error("El nombre y código de cuadrilla son obligatorios");
+                return;
+              }
+
+              setIsCreatingCrew(true);
+              try {
+                const res = await createCrewLocationAction({
+                  branch_id: warehouses[0]?.branch_id || "",
+                  name: newCrewName.trim(),
+                  code: newCrewCode.toUpperCase().trim(),
+                });
+
+                if (!res.success) {
+                  toast.error("Error al registrar cuadrilla", {
+                    description: res.error,
+                  });
+                  setIsCreatingCrew(false);
+                  return;
+                }
+
+                toast.success("Cuadrilla creada exitosamente");
+                setNewCrewName("");
+                setNewCrewCode("");
+                setIsCreateCrewOpen(false);
+                router.refresh();
+              } catch {
+                toast.error("Error inesperado en el servidor");
+              } finally {
+                setIsCreatingCrew(false);
+              }
+            }}
+            className="space-y-4 py-2"
+          >
+            <div className="space-y-1">
+              <Label htmlFor="crew-code" className="text-xs font-semibold">
+                Código de Cuadrilla (Ej. C-09 o TEC-JP)
+              </Label>
+              <Input
+                id="crew-code"
+                placeholder="Ej. C-09"
+                value={newCrewCode}
+                onChange={(e) => setNewCrewCode(e.target.value.toUpperCase())}
+                className="font-mono min-h-[44px]"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="crew-name" className="text-xs font-semibold">
+                Nombre de la Cuadrilla / Técnico
+              </Label>
+              <Input
+                id="crew-name"
+                placeholder="Ej. Cuadrilla 09 - Juan Pérez (Acometida)"
+                value={newCrewName}
+                onChange={(e) => setNewCrewName(e.target.value)}
+                className="min-h-[44px]"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateCrewOpen(false)}
+                disabled={isCreatingCrew}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingCrew}
+                className="gap-2 bg-primary font-semibold min-h-[44px]"
+              >
+                {isCreatingCrew ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creando...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    Registrar Cuadrilla
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
