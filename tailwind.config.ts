@@ -63,11 +63,51 @@ const config: Config = {
           900: "#0b3c6f",
           950: "#07264a",
         },
+        // Star Conectados Luxury Palette tokens
+        marino: {
+          DEFAULT: "hsl(var(--marino))",
+          foreground: "hsl(var(--hielo))",
+        },
+        royal: {
+          DEFAULT: "hsl(var(--royal))",
+          foreground: "#ffffff",
+        },
+        cielo: {
+          DEFAULT: "hsl(var(--cielo))",
+          foreground: "hsl(var(--marino))",
+        },
+        hielo: {
+          DEFAULT: "hsl(var(--hielo))",
+          foreground: "hsl(var(--carbon))",
+        },
+        carbon: {
+          DEFAULT: "hsl(var(--carbon))",
+          foreground: "hsl(var(--hielo))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "float-slow": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
+        "float-reverse": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(8px)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "0.6", transform: "scale(1)" },
+          "50%": { opacity: "1", transform: "scale(1.05)" },
+        },
+      },
+      animation: {
+        "float-slow": "float-slow 6s ease-in-out infinite",
+        "float-reverse": "float-reverse 7s ease-in-out infinite",
+        "pulse-glow": "pulse-glow 4s ease-in-out infinite",
       },
       minHeight: {
         touch: "44px",

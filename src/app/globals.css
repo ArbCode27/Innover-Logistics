@@ -33,6 +33,18 @@
     --ring: 212 92% 43%;
 
     --radius: 0.5rem;
+
+    /* Star Conectados Palette Tokens (HSL) */
+    /* Marino: #1B3A7A -> 220 64% 29% */
+    --marino: 220 64% 29%;
+    /* Royal: #3B82E0 -> 214 74% 56% */
+    --royal: 214 74% 56%;
+    /* Cielo: #93C0F2 -> 211 78% 76% */
+    --cielo: 211 78% 76%;
+    /* Hielo: #EAF2FB -> 212 68% 95% */
+    --hielo: 212 68% 95%;
+    /* Carbón: #1F2937 -> 215 28% 17% */
+    --carbon: 215 28% 17%;
   }
 
   .dark {
@@ -63,6 +75,13 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212 92% 50%;
+
+    /* Star Conectados Palette in Dark Mode */
+    --marino: 221 68% 20%;
+    --royal: 214 85% 62%;
+    --cielo: 211 82% 72%;
+    --hielo: 212 40% 94%;
+    --carbon: 222 47% 9%;
   }
 }
 
