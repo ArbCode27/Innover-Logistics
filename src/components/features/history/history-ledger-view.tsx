@@ -206,7 +206,7 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
             <option value="purchase">Compras Locales (+)</option>
             <option value="transfer_out">Salidas de Traslado (-)</option>
             <option value="transfer_in">Entradas de Traslado (+)</option>
-            <option value="consumption">Consumo de Campo (-)</option>
+            <option value="consumption">Salida / Consumo / Nota Entrega (-)</option>
             <option value="void">Contra-asientos de Anulación</option>
           </select>
         </CardContent>

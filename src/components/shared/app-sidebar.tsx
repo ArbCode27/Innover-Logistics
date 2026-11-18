@@ -65,11 +65,11 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["superadmin", "admin_sucursal"],
   },
   {
-    title: "Consumos de Campo",
+    title: "Órdenes de Salida",
     href: "/consumos",
     icon: Flame,
     roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
-    badge: "<30s",
+    badge: "Salidas",
   },
   {
     title: "Solicitudes",

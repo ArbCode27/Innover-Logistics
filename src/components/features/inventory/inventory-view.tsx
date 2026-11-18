@@ -187,7 +187,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           <Button asChild variant="outline" size="sm" className="gap-1.5 min-h-[40px]">
             <Link href="/consumos">
               <Flame className="h-4 w-4 text-orange-500" aria-hidden="true" />
-              Reportar Consumo
+              Órdenes de Salida
             </Link>
           </Button>
 

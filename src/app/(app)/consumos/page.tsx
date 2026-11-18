@@ -1,29 +1,27 @@
 import { getCurrentProfile } from "@/actions/auth";
 import { getLocations, getItemsCatalog, getSerializedUnits } from "@/actions/inventory";
-import { getConsumptionsList } from "@/actions/consumptions";
-import { FieldConsumptionForm } from "@/components/features/consumptions/field-consumption-form";
+import { getDispatchOrdersHistory } from "@/actions/dispatch-orders";
+import { DispatchOrdersView } from "@/components/features/consumptions/dispatch-orders-view";
 
 export default async function ConsumptionsPage() {
   const profile = await getCurrentProfile();
-  const [locations, items, consumptions, serializedUnits] = await Promise.all([
+  const [locations, items, historyDocuments, serializedUnits] = await Promise.all([
     getLocations(profile?.branch_id || undefined),
     getItemsCatalog(),
-    getConsumptionsList(
+    getDispatchOrdersHistory(
       profile?.branch_id || undefined,
       profile?.crew_id || undefined
     ),
     getSerializedUnits(),
   ]);
 
-  const crewLocations = locations.filter((l) => l.type === "crew");
-
   return (
-    <FieldConsumptionForm
-      crews={crewLocations.length > 0 ? crewLocations : locations}
+    <DispatchOrdersView
+      locations={locations}
       items={items}
-      consumptions={consumptions}
+      historyDocuments={historyDocuments}
       userRole={profile?.role || "tecnico"}
-      defaultCrewId={profile?.crew_id || undefined}
+      defaultLocationId={profile?.crew_id || undefined}
       serializedUnits={serializedUnits}
     />
   );

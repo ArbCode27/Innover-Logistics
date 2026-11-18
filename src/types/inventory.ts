@@ -47,7 +47,17 @@ export interface DocumentWithDetails extends Document {
   branch: Branch;
   creator: Profile;
   lines: (DocumentLine & { item: Item; serial_unit?: SerialUnit | null })[];
+  work_type?: string | null;
+  client_name?: string | null;
+  client_code?: string | null;
+  project_name?: string | null;
+  technician_name?: string | null;
+  technician_id?: string | null;
+  receiver_mode?: string | null;
+  delivery_note_number?: string | null;
 }
+
+export type DispatchWorkType = "client_job" | "field_project" | "internal_maintenance";
 
 export interface TransferLineInput {
   item_id: string;
