@@ -35,6 +35,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -254,17 +261,21 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
           <div className="space-y-4 my-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Almacén Origen</Label>
-              <select
+              <Select
                 value={originWarehouseId}
-                onChange={(e) => setOriginWarehouseId(e.target.value)}
-                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground min-h-[44px]"
+                onValueChange={(val) => setOriginWarehouseId(val)}
               >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="min-h-[44px]">
+                  <SelectValue placeholder="Seleccione el almacén de origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-3">
@@ -289,19 +300,25 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
                   key={idx}
                   className="flex items-center gap-2 p-2 rounded-md border bg-muted/20"
                 >
-                  <select
-                    value={line.item_id}
-                    onChange={(e) =>
-                      handleLineChange(idx, "item_id", e.target.value)
-                    }
-                    className="flex-1 h-10 rounded-md border border-input bg-background px-2 text-xs"
-                  >
-                    {items.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        [{i.sku}] {i.name} ({i.unit})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex-1">
+                    <Select
+                      value={line.item_id}
+                      onValueChange={(val) =>
+                        handleLineChange(idx, "item_id", val)
+                      }
+                    >
+                      <SelectTrigger className="h-10 text-xs">
+                        <SelectValue placeholder="Seleccione material" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map((i) => (
+                          <SelectItem key={i.id} value={i.id} className="text-xs">
+                            [{i.sku}] {i.name} ({i.unit})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   <Input
                     type="number"

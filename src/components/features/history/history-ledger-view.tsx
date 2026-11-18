@@ -42,6 +42,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -197,18 +204,24 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
             />
           </div>
 
-          <select
-            value={movementFilter}
-            onChange={(e) => setMovementFilter(e.target.value)}
-            className="h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary min-h-[44px]"
-          >
-            <option value="all">Todos los tipos de movimiento</option>
-            <option value="purchase">Compras Locales (+)</option>
-            <option value="transfer_out">Salidas de Traslado (-)</option>
-            <option value="transfer_in">Entradas de Traslado (+)</option>
-            <option value="consumption">Salida / Consumo / Nota Entrega (-)</option>
-            <option value="void">Contra-asientos de Anulación</option>
-          </select>
+          <div className="w-full sm:w-72">
+            <Select
+              value={movementFilter}
+              onValueChange={(val) => setMovementFilter(val)}
+            >
+              <SelectTrigger className="min-h-[44px]">
+                <SelectValue placeholder="Tipo de movimiento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos de movimiento</SelectItem>
+                <SelectItem value="purchase">Compras Locales (+)</SelectItem>
+                <SelectItem value="transfer_out">Salidas de Traslado (-)</SelectItem>
+                <SelectItem value="transfer_in">Entradas de Traslado (+)</SelectItem>
+                <SelectItem value="consumption">Salida / Consumo / Nota Entrega (-)</SelectItem>
+                <SelectItem value="void">Contra-asientos de Anulación</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 

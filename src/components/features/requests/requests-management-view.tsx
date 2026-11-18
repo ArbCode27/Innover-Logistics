@@ -29,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -81,6 +88,8 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     reset,
     formState: { errors },
   } = useForm<MaterialRequestInput>({
@@ -302,32 +311,44 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 my-2">
             <div className="space-y-1.5">
               <Label htmlFor="crew_location_id">Cuadrilla Receptora</Label>
-              <select
-                id="crew_location_id"
-                {...register("crew_location_id")}
-                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground min-h-[44px]"
+              <Select
+                value={watch("crew_location_id")}
+                onValueChange={(val) =>
+                  setValue("crew_location_id", val, { shouldValidate: true })
+                }
               >
-                {crews.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="crew_location_id" className="min-h-[44px]">
+                  <SelectValue placeholder="Seleccione cuadrilla" />
+                </SelectTrigger>
+                <SelectContent>
+                  {crews.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="item_id">Material / Equipo Solicitado</Label>
-              <select
-                id="item_id"
-                {...register("item_id")}
-                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground min-h-[44px]"
+              <Select
+                value={watch("item_id")}
+                onValueChange={(val) =>
+                  setValue("item_id", val, { shouldValidate: true })
+                }
               >
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    [{i.sku}] {i.name} ({i.unit})
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="item_id" className="min-h-[44px]">
+                  <SelectValue placeholder="Seleccione material" />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.map((i) => (
+                    <SelectItem key={i.id} value={i.id}>
+                      [{i.sku}] {i.name} ({i.unit})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

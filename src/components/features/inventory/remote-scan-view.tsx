@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
 import {
   registerPurchaseAction,
@@ -1017,11 +1018,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
             <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t bg-muted/10">
               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={continuousMode}
-                  onChange={(e) => setContinuousMode(e.target.checked)}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => setContinuousMode(!!checked)}
                 />
                 <span>Modo continuo (mantener sesión lista para siguiente equipo)</span>
               </label>

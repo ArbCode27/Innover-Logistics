@@ -93,10 +93,11 @@ export const Navbar: React.FC = () => {
             </Button>
 
             {/* Mobile Menu Button */}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleToggleMenu}
-              className="md:hidden flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              className="md:hidden h-9 w-9 rounded-full"
               aria-expanded={mobileMenuOpen}
               aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
             >
@@ -105,7 +106,7 @@ export const Navbar: React.FC = () => {
               ) : (
                 <Menu className="h-5 w-5" aria-hidden="true" />
               )}
-            </button>
+            </Button>
           </div>
         </div>
 

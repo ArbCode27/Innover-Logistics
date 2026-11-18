@@ -56,6 +56,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -364,15 +371,21 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   <Label htmlFor="work_type" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
                     Motivo / Tipo de Trabajo
                   </Label>
-                  <select
-                    id="work_type"
-                    {...register("work_type")}
-                    className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary font-medium"
+                  <Select
+                    value={watch("work_type")}
+                    onValueChange={(val: any) =>
+                      setValue("work_type", val, { shouldValidate: true })
+                    }
                   >
-                    <option value="client_job">Instalación (Trabajo con Cliente)</option>
-                    <option value="field_project">Trabajo de Campo (Proyecto u Obra)</option>
-                    <option value="internal_maintenance">Mantenimiento Interno / Operativo</option>
-                  </select>
+                    <SelectTrigger className="min-h-[44px]">
+                      <SelectValue placeholder="Seleccione motivo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="client_job">Instalación (Trabajo con Cliente)</SelectItem>
+                      <SelectItem value="field_project">Trabajo de Campo (Proyecto u Obra)</SelectItem>
+                      <SelectItem value="internal_maintenance">Mantenimiento Interno / Operativo</SelectItem>
+                    </SelectContent>
+                  </Select>
                   {errors.work_type && (
                     <p className="text-xs text-destructive">{errors.work_type.message}</p>
                   )}
@@ -382,17 +395,23 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   <Label htmlFor="location_id" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
                     Almacén
                   </Label>
-                  <select
-                    id="location_id"
-                    {...register("location_id")}
-                    className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary font-medium"
+                  <Select
+                    value={watch("location_id")}
+                    onValueChange={(val) =>
+                      setValue("location_id", val, { shouldValidate: true })
+                    }
                   >
-                    {locations.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        {loc.name} ({loc.type === "branch" ? "Sede Central" : "Móvil/Cuadrilla"})
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="min-h-[44px]">
+                      <SelectValue placeholder="Seleccione almacén" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((loc) => (
+                        <SelectItem key={loc.id} value={loc.id}>
+                          {loc.name} ({loc.type === "branch" ? "Sede Central" : "Móvil/Cuadrilla"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {errors.location_id && (
                     <p className="text-xs text-destructive">{errors.location_id.message}</p>
                   )}
@@ -503,15 +522,21 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   <Label htmlFor="receiver_mode" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
                     Se Entregará A
                   </Label>
-                  <select
-                    id="receiver_mode"
-                    {...register("receiver_mode")}
-                    className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                  <Select
+                    value={watch("receiver_mode")}
+                    onValueChange={(val) =>
+                      setValue("receiver_mode", val, { shouldValidate: true })
+                    }
                   >
-                    <option value="warehouse_decides">Lo decide el almacén al despachar</option>
-                    <option value="technician_direct">Entrega directa al técnico solicitante</option>
-                    <option value="third_party_contractor">Contratista / Cuadrilla externa</option>
-                  </select>
+                    <SelectTrigger className="min-h-[44px]">
+                      <SelectValue placeholder="Modo de entrega" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="warehouse_decides">Lo decide el almacén al despachar</SelectItem>
+                      <SelectItem value="technician_direct">Entrega directa al técnico solicitante</SelectItem>
+                      <SelectItem value="third_party_contractor">Contratista / Cuadrilla externa</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -527,23 +552,24 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Selector de Kits */}
-                    <select
-                      aria-label="Agregar kit de materiales"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleApplyKit(e.target.value);
-                          e.target.value = "";
-                        }
-                      }}
-                      className="h-9 rounded-md border border-input bg-background px-2 py-1 text-xs text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary"
-                    >
-                      <option value="">Agregar kit...</option>
-                      {MATERIAL_KITS.map((kit) => (
-                        <option key={kit.id} value={kit.id}>
-                          {kit.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="w-48">
+                      <Select
+                        onValueChange={(val) => {
+                          if (val) handleApplyKit(val);
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Agregar kit..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MATERIAL_KITS.map((kit) => (
+                            <SelectItem key={kit.id} value={kit.id} className="text-xs">
+                              {kit.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     <Button
                       type="button"
@@ -593,16 +619,23 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                           <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                             Producto / Código o Nombre
                           </Label>
-                          <select
-                            {...register(`lines.${index}.item_id` as const)}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                          <Select
+                            value={currentItemId}
+                            onValueChange={(val) =>
+                              setValue(`lines.${index}.item_id`, val, { shouldValidate: true })
+                            }
                           >
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                [{item.sku}] {item.name} ({item.unit})
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger className="h-10 text-xs">
+                              <SelectValue placeholder="Seleccione producto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {items.map((item) => (
+                                <SelectItem key={item.id} value={item.id} className="text-xs">
+                                  [{item.sku}] {item.name} ({item.unit})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         {/* Cantidad */}
@@ -627,19 +660,31 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                             <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                               Serial / MAC
                             </Label>
-                            <select
-                              {...register(`lines.${index}.serial_unit_id` as const)}
-                              className="w-full h-10 rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground"
+                            <Select
+                              value={watch(`lines.${index}.serial_unit_id`) || "none"}
+                              onValueChange={(val) =>
+                                setValue(
+                                  `lines.${index}.serial_unit_id`,
+                                  val === "none" ? null : val
+                                )
+                              }
                             >
-                              <option value="">Asignar en almacén...</option>
-                              {availableSerialsForLocation
-                                .filter((s) => s.item_id === currentItemId)
-                                .map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    S/N: {s.serial_number} {s.mac_address ? `(${s.mac_address})` : ""}
-                                  </option>
-                                ))}
-                            </select>
+                              <SelectTrigger className="h-10 text-xs">
+                                <SelectValue placeholder="Asignar en almacén..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none" className="text-xs">
+                                  Asignar en almacén...
+                                </SelectItem>
+                                {availableSerialsForLocation
+                                  .filter((s) => s.item_id === currentItemId)
+                                  .map((s) => (
+                                    <SelectItem key={s.id} value={s.id} className="text-xs font-mono">
+                                      S/N: {s.serial_number} {s.mac_address ? `(${s.mac_address})` : ""}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         )}
 
@@ -736,17 +781,22 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   />
                 </div>
 
-                <select
-                  aria-label="Filtrar por tipo de salida"
-                  value={filterWorkType}
-                  onChange={(e) => setFilterWorkType(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground"
-                >
-                  <option value="all">Todos los motivos</option>
-                  <option value="client_job">Clientes / Instalación</option>
-                  <option value="field_project">Obras / Proyectos</option>
-                  <option value="internal_maintenance">Mantenimiento Interno</option>
-                </select>
+                <div className="w-48">
+                  <Select
+                    value={filterWorkType}
+                    onValueChange={(val) => setFilterWorkType(val)}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Tipo de salida" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los motivos</SelectItem>
+                      <SelectItem value="client_job">Clientes / Instalación</SelectItem>
+                      <SelectItem value="field_project">Obras / Proyectos</SelectItem>
+                      <SelectItem value="internal_maintenance">Mantenimiento Interno</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>

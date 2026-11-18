@@ -36,6 +36,14 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Branch, Item, UnitOfMeasure } from "@/types/inventory";
 
 interface AdminManagementViewProps {
@@ -343,33 +351,39 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Categoría</Label>
-                      <select
+                      <Select
                         value={itemCategory}
-                        onChange={(e) => setItemCategory(e.target.value)}
-                        className="w-full h-11 rounded-md border border-input bg-background px-2 text-xs text-foreground min-h-[44px]"
+                        onValueChange={(val) => setItemCategory(val)}
                       >
-                        <option value="Equipos Activos">Equipos Activos (ONUs / Routers)</option>
-                        <option value="Fibra Óptica">Fibra Óptica</option>
-                        <option value="Ferretería y Pasivos">Ferretería y Pasivos</option>
-                        <option value="Herramientas">Herramientas de Almacén</option>
-                      </select>
+                        <SelectTrigger className="min-h-[44px]">
+                          <SelectValue placeholder="Categoría" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Equipos Activos">Equipos Activos (ONUs / Routers)</SelectItem>
+                          <SelectItem value="Fibra Óptica">Fibra Óptica</SelectItem>
+                          <SelectItem value="Ferretería y Pasivos">Ferretería y Pasivos</SelectItem>
+                          <SelectItem value="Herramientas">Herramientas de Almacén</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-1">
                       <Label className="text-xs">Unidad de Medida</Label>
-                      <select
+                      <Select
                         value={itemUnit}
-                        onChange={(e) =>
-                          setItemUnit(e.target.value as UnitOfMeasure)
-                        }
-                        className="w-full h-11 rounded-md border border-input bg-background px-2 text-xs text-foreground min-h-[44px]"
+                        onValueChange={(val) => setItemUnit(val as UnitOfMeasure)}
                       >
-                        <option value="unidades">unidades</option>
-                        <option value="metros">metros</option>
-                        <option value="bobinas">bobinas</option>
-                        <option value="kilogramos">kilogramos</option>
-                        <option value="pares">pares</option>
-                      </select>
+                        <SelectTrigger className="min-h-[44px]">
+                          <SelectValue placeholder="Unidad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unidades">unidades</SelectItem>
+                          <SelectItem value="metros">metros</SelectItem>
+                          <SelectItem value="bobinas">bobinas</SelectItem>
+                          <SelectItem value="kilogramos">kilogramos</SelectItem>
+                          <SelectItem value="pares">pares</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -390,15 +404,13 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                       />
                     </div>
 
-                    <div className="flex flex-col justify-end pb-2">
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
-                        <input
-                          type="checkbox"
+                    <div className="flex flex-col justify-end pb-3">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                        <Checkbox
                           checked={itemIsSerialized}
-                          onChange={(e) =>
-                            setItemIsSerialized(e.target.checked)
+                          onCheckedChange={(checked) =>
+                            setItemIsSerialized(!!checked)
                           }
-                          className="h-4 w-4 rounded border-input text-primary"
                         />
                         <span>¿Es serializado? (ONU/Router)</span>
                       </label>

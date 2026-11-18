@@ -26,6 +26,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -74,6 +81,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
     register,
     control,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<IssueTransferInput>({
@@ -160,17 +168,23 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="origin_location_id">Almacén Origen</Label>
-              <select
-                id="origin_location_id"
-                {...register("origin_location_id")}
-                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary min-h-[44px]"
+              <Select
+                value={selectedOrigin}
+                onValueChange={(val) =>
+                  setValue("origin_location_id", val, { shouldValidate: true })
+                }
               >
-                {warehouseLocations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="origin_location_id" className="min-h-[44px]">
+                  <SelectValue placeholder="Seleccione almacén de origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouseLocations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {errors.origin_location_id && (
                 <p className="text-xs text-destructive">
                   {errors.origin_location_id.message}
@@ -180,19 +194,25 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
 
             <div className="space-y-2">
               <Label htmlFor="destination_location_id">Almacén Destino</Label>
-              <select
-                id="destination_location_id"
-                {...register("destination_location_id")}
-                className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary min-h-[44px]"
+              <Select
+                value={watch("destination_location_id")}
+                onValueChange={(val) =>
+                  setValue("destination_location_id", val, { shouldValidate: true })
+                }
               >
-                {warehouseLocations
-                  .filter((l) => l.id !== selectedOrigin)
-                  .map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger id="destination_location_id" className="min-h-[44px]">
+                  <SelectValue placeholder="Seleccione almacén de destino" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouseLocations
+                    .filter((l) => l.id !== selectedOrigin)
+                    .map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
               {errors.destination_location_id && (
                 <p className="text-xs text-destructive">
                   {errors.destination_location_id.message}
@@ -241,16 +261,23 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
                 >
                   <div className="flex-1 w-full space-y-1.5">
                     <Label className="text-xs">Ítem / Descripción</Label>
-                    <select
-                      {...register(`lines.${index}.item_id` as const)}
-                      className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground min-h-[44px]"
+                    <Select
+                      value={watch(`lines.${index}.item_id`)}
+                      onValueChange={(val) =>
+                        setValue(`lines.${index}.item_id`, val, { shouldValidate: true })
+                      }
                     >
-                      {items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          [{item.sku}] {item.name} ({item.unit})
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="min-h-[44px]">
+                        <SelectValue placeholder="Seleccione ítem" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            [{item.sku}] {item.name} ({item.unit})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="w-full sm:w-32 space-y-1.5">

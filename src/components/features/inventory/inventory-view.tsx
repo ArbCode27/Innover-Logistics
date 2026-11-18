@@ -38,6 +38,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -285,12 +292,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <button
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => setOnlyLowStock(!onlyLowStock)}
-              className="text-xs font-semibold text-primary underline underline-offset-4 focus-visible:outline-none"
+              className="p-0 h-auto text-xs font-semibold text-primary underline underline-offset-4"
             >
               {onlyLowStock ? "Ver todos los ítems" : "Filtrar bajo stock mínimo"}
-            </button>
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -348,35 +357,44 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               />
             </div>
 
-            {/* Category Dropdown */}
+            {/* Category and Location Filters */}
             <div className="flex flex-wrap gap-2 items-center">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary min-h-[44px]"
-                aria-label="Filtrar por categoría"
-              >
-                <option value="all">Todas las categorías</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full sm:w-56">
+                <Select
+                  value={categoryFilter}
+                  onValueChange={(val) => setCategoryFilter(val)}
+                >
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue placeholder="Categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las categorías</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              {/* Location Selector */}
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary min-h-[44px]"
-                aria-label="Seleccionar almacén o cuadrilla"
-              >
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name} ({loc.type === "crew" ? "Cuadrilla" : "Almacén"})
-                  </option>
-                ))}
-              </select>
+              <div className="w-full sm:w-64">
+                <Select
+                  value={selectedLocation}
+                  onValueChange={(val) => setSelectedLocation(val)}
+                >
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue placeholder="Almacén o cuadrilla" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name} ({loc.type === "crew" ? "Cuadrilla" : "Almacén"})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardContent>
