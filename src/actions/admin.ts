@@ -11,6 +11,11 @@ export const createBranchAction = async (data: {
   name: string;
   address?: string;
   phone?: string;
+  is_main?: boolean;
+  parent_branch_id?: string | null;
+  state?: string;
+  municipality?: string;
+  franchise_name?: string;
 }): Promise<ActionResult<{ id: string }>> => {
   const profile = await getCurrentProfile();
   if (profile?.role !== "superadmin") {
@@ -25,11 +30,25 @@ export const createBranchAction = async (data: {
         name: data.name.trim(),
         address: data.address?.trim() || null,
         phone: data.phone?.trim() || null,
+        is_main: data.is_main ?? false,
+        parent_branch_id: data.parent_branch_id || null,
+        state: data.state?.trim() || null,
+        municipality: data.municipality?.trim() || null,
+        franchise_name: data.franchise_name?.trim() || null,
       })
       .select()
       .single();
 
     if (!error && branch) {
+      // Crear depósito principal automático para la nueva sede
+      await (supabase.from("locations") as any).insert({
+        branch_id: branch.id,
+        code: `ALM-${data.code.toUpperCase().trim()}`,
+        name: `Almacén General ${data.name.trim()}`,
+        type: "branch",
+        is_active: true,
+      });
+
       revalidatePath("/admin");
       revalidatePath("/inventario");
       return { success: true, data: { id: branch.id } };

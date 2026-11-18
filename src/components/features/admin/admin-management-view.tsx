@@ -62,6 +62,11 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
   const [branchName, setBranchName] = React.useState<string>("");
   const [branchAddress, setBranchAddress] = React.useState<string>("");
   const [branchPhone, setBranchPhone] = React.useState<string>("");
+  const [branchState, setBranchState] = React.useState<string>("");
+  const [branchMunicipality, setBranchMunicipality] = React.useState<string>("");
+  const [branchFranchise, setBranchFranchise] = React.useState<string>("");
+  const [isMainBranch, setIsMainBranch] = React.useState<boolean>(false);
+  const [parentBranchId, setParentBranchId] = React.useState<string>("none");
   const [isCreatingBranch, setIsCreatingBranch] =
     React.useState<boolean>(false);
 
@@ -89,6 +94,11 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
         name: branchName,
         address: branchAddress,
         phone: branchPhone,
+        is_main: isMainBranch,
+        parent_branch_id: parentBranchId !== "none" ? parentBranchId : null,
+        state: branchState,
+        municipality: branchMunicipality,
+        franchise_name: branchFranchise,
       });
 
       if (!res.success) {
@@ -102,6 +112,11 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
       setBranchName("");
       setBranchAddress("");
       setBranchPhone("");
+      setBranchState("");
+      setBranchMunicipality("");
+      setBranchFranchise("");
+      setIsMainBranch(false);
+      setParentBranchId("none");
       router.refresh();
     } catch {
       toast.error("Error inesperado al conectar con el servidor");
@@ -215,6 +230,46 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                     />
                   </div>
 
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="branch-state" className="text-xs">
+                        Estado
+                      </Label>
+                      <Input
+                        id="branch-state"
+                        placeholder="Ej. Lara"
+                        value={branchState}
+                        onChange={(e) => setBranchState(e.target.value)}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="branch-mun" className="text-xs">
+                        Municipio
+                      </Label>
+                      <Input
+                        id="branch-mun"
+                        placeholder="Ej. Iribarren"
+                        value={branchMunicipality}
+                        onChange={(e) => setBranchMunicipality(e.target.value)}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="branch-franchise" className="text-xs">
+                      Franquicia / Zona Comercial
+                    </Label>
+                    <Input
+                      id="branch-franchise"
+                      placeholder="Ej. Tv Star Centro-Occidente"
+                      value={branchFranchise}
+                      onChange={(e) => setBranchFranchise(e.target.value)}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+
                   <div className="space-y-1">
                     <Label htmlFor="branch-addr" className="text-xs">
                       Dirección (opcional)
@@ -239,6 +294,47 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                       onChange={(e) => setBranchPhone(e.target.value)}
                       className="min-h-[44px]"
                     />
+                  </div>
+
+                  {/* Jerarquía: Sede Matriz vs Sede Hija */}
+                  <div className="pt-2 border-t space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="is-main-branch"
+                        checked={isMainBranch}
+                        onCheckedChange={(checked) => {
+                          setIsMainBranch(Boolean(checked));
+                          if (checked) setParentBranchId("none");
+                        }}
+                      />
+                      <label
+                        htmlFor="is-main-branch"
+                        className="text-xs font-semibold cursor-pointer select-none leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        ¿Es Sede Matriz / Distribuidor Central?
+                      </label>
+                    </div>
+
+                    {!isMainBranch && (
+                      <div className="space-y-1 pl-1">
+                        <Label htmlFor="parent-branch-select" className="text-xs text-muted-foreground">
+                          Sede Matriz Administradora (Padre)
+                        </Label>
+                        <Select value={parentBranchId} onValueChange={setParentBranchId}>
+                          <SelectTrigger id="parent-branch-select" className="min-h-[44px]">
+                            <SelectValue placeholder="Seleccionar sede matriz..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin sede matriz (Independiente)</SelectItem>
+                            {branches.map((b) => (
+                              <SelectItem key={b.id} value={b.id}>
+                                {b.name} ({b.code}) {b.is_main ? "• Matriz Principal" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter className="pt-2 border-t">

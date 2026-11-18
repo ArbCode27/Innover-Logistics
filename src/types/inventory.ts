@@ -55,6 +55,9 @@ export interface DocumentWithDetails extends Document {
   technician_id?: string | null;
   receiver_mode?: string | null;
   delivery_note_number?: string | null;
+  supplier_name?: string | null;
+  supplier_rif?: string | null;
+  invoice_number?: string | null;
 }
 
 export type DispatchWorkType = "client_job" | "field_project" | "internal_maintenance";

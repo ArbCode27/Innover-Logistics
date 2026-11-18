@@ -53,6 +53,8 @@ import {
 } from "@/components/ui/dialog";
 import { formatNumber } from "@/lib/utils";
 import { MassiveScanModal } from "@/components/features/inventory/massive-scan-modal";
+import { LocalPurchaseModal } from "@/components/features/inventory/local-purchase-modal";
+import { ShoppingCart } from "lucide-react";
 import type {
   Location,
   SerializedItemWithDetails,
@@ -89,6 +91,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [activeSerialItem, setActiveSerialItem] =
     React.useState<StockItemWithBalance | null>(null);
   const [isMassiveScanOpen, setIsMassiveScanOpen] =
+    React.useState<boolean>(false);
+  const [isLocalPurchaseOpen, setIsLocalPurchaseOpen] =
     React.useState<boolean>(false);
   const [preselectedItemId, setPreselectedItemId] =
     React.useState<string | null>(null);
@@ -181,6 +185,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <Camera className="h-4 w-4" aria-hidden="true" />
             Ingreso con Cámara
           </Button>
+
+          {/* Action: Local Purchase for Branches */}
+          {["superadmin", "admin_sucursal"].includes(userRole) && (
+            <Button
+              onClick={() => setIsLocalPurchaseOpen(true)}
+              variant="outline"
+              size="sm"
+              className="gap-2 border-primary/40 text-primary hover:bg-primary/10 font-semibold px-3 min-h-[40px]"
+            >
+              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+              Ingreso Compra Local
+            </Button>
+          )}
 
           {["superadmin", "admin_sucursal"].includes(userRole) && (
             <Button asChild variant="outline" size="sm" className="gap-1.5 shadow-sm min-h-[40px]">
@@ -629,6 +646,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         onSuccessRegistration={() => {
           router.refresh();
         }}
+      />
+
+      {/* Local Purchase Modal for Direct Supplier Ingestion */}
+      <LocalPurchaseModal
+        open={isLocalPurchaseOpen}
+        onOpenChange={setIsLocalPurchaseOpen}
+        locations={locations}
+        currentLocationId={selectedLocation}
+        catalogItems={initialStock}
       />
     </div>
   );

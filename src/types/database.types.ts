@@ -36,6 +36,11 @@ export type Database = {
           address: string | null;
           phone: string | null;
           is_active: boolean;
+          is_main?: boolean;
+          parent_branch_id?: string | null;
+          state?: string | null;
+          municipality?: string | null;
+          franchise_name?: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -46,6 +51,11 @@ export type Database = {
           address?: string | null;
           phone?: string | null;
           is_active?: boolean;
+          is_main?: boolean;
+          parent_branch_id?: string | null;
+          state?: string | null;
+          municipality?: string | null;
+          franchise_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -56,6 +66,11 @@ export type Database = {
           address?: string | null;
           phone?: string | null;
           is_active?: boolean;
+          is_main?: boolean;
+          parent_branch_id?: string | null;
+          state?: string | null;
+          municipality?: string | null;
+          franchise_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -261,6 +276,9 @@ export type Database = {
           technician_id?: string | null;
           receiver_mode?: string | null;
           delivery_note_number?: string | null;
+          supplier_name?: string | null;
+          supplier_rif?: string | null;
+          invoice_number?: string | null;
           created_by: string;
           approved_by: string | null;
           approved_at: string | null;
@@ -290,6 +308,9 @@ export type Database = {
           technician_id?: string | null;
           receiver_mode?: string | null;
           delivery_note_number?: string | null;
+          supplier_name?: string | null;
+          supplier_rif?: string | null;
+          invoice_number?: string | null;
           created_by: string;
           approved_by?: string | null;
           approved_at?: string | null;
@@ -319,6 +340,9 @@ export type Database = {
           technician_id?: string | null;
           receiver_mode?: string | null;
           delivery_note_number?: string | null;
+          supplier_name?: string | null;
+          supplier_rif?: string | null;
+          invoice_number?: string | null;
           created_by?: string;
           approved_by?: string | null;
           approved_at?: string | null;
