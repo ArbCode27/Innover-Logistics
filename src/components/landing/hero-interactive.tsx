@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Boxes,
   Truck,
@@ -149,7 +150,12 @@ export const HeroInteractive: React.FC = () => {
         {/* 3-Column Layout: Left Text | Center Glass Cards | Right Vertical Selector */}
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-8 items-center">
           {/* Column 1: Left Copy & CTAs (5 cols) */}
-          <div className="lg:col-span-5 flex flex-col items-start text-left space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="lg:col-span-5 flex flex-col items-start text-left space-y-6"
+          >
             {/* Context Badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-royal/30 bg-royal/10 px-3.5 py-1 text-xs font-semibold text-royal dark:text-cielo shadow-sm backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -216,7 +222,7 @@ export const HeroInteractive: React.FC = () => {
                 <span>Registro móvil en menos de 30s</span>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Column 2: Center Floating Glass Stack (5 cols) */}
           <div className="lg:col-span-5 relative">
@@ -226,43 +232,73 @@ export const HeroInteractive: React.FC = () => {
               aria-hidden="true"
             />
 
-            <div
-              key={activeTab}
-              className="relative flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-3 duration-300"
-            >
-              {/* Card 1: Stock Gauge */}
-              <GlassCard isFloating className="z-20">
-                <StockGauge
-                  percentage={currentTabData.gaugePercentage}
-                  label={currentTabData.gaugeLabel}
-                  sublabel={currentTabData.gaugeSublabel}
-                />
-              </GlassCard>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                className="relative flex flex-col gap-4"
+              >
+                {/* Card 1: Stock Gauge */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+                  className="z-20"
+                >
+                  <GlassCard>
+                    <StockGauge
+                      percentage={currentTabData.gaugePercentage}
+                      label={currentTabData.gaugeLabel}
+                      sublabel={currentTabData.gaugeSublabel}
+                    />
+                  </GlassCard>
+                </motion.div>
 
-              {/* Card 2: Branch Activity Map */}
-              <GlassCard reverseFloating className="z-10 -mt-2">
-                <BranchActivityCard
-                  branchName={currentTabData.branchName}
-                  activityLevel={currentTabData.activityLevel}
-                  activeCrews={currentTabData.activeCrews}
-                  openDispatches={currentTabData.openDispatches}
-                />
-              </GlassCard>
+                {/* Card 2: Branch Activity Map */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                  className="z-10 -mt-2"
+                >
+                  <GlassCard>
+                    <BranchActivityCard
+                      branchName={currentTabData.branchName}
+                      activityLevel={currentTabData.activityLevel}
+                      activeCrews={currentTabData.activeCrews}
+                      openDispatches={currentTabData.openDispatches}
+                    />
+                  </GlassCard>
+                </motion.div>
 
-              {/* Card 3: Solid White Restock Alert Card */}
-              <div className="z-30 -mt-2">
-                <RestockAlertCard
-                  productName={currentTabData.alertProduct}
-                  branch={currentTabData.alertBranch}
-                  currentStock={currentTabData.alertStock}
-                  productType={currentTabData.alertType}
-                />
-              </div>
-            </div>
+                {/* Card 3: Solid White Restock Alert Card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                  className="z-30 -mt-2"
+                >
+                  <RestockAlertCard
+                    productName={currentTabData.alertProduct}
+                    branch={currentTabData.alertBranch}
+                    currentStock={currentTabData.alertStock}
+                    productType={currentTabData.alertType}
+                  />
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* Column 3: Right Vertical Pillar Selector (2 cols) */}
-          <div className="hidden lg:flex lg:col-span-2 flex-col items-center justify-center relative">
+          <motion.div
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="hidden lg:flex lg:col-span-2 flex-col items-center justify-center relative"
+          >
             {/* Orbital Curve / Line Background */}
             <div
               className="absolute inset-y-8 left-1/2 -translate-x-1/2 w-px bg-gradient-to-b from-transparent via-royal/30 to-transparent"
@@ -326,11 +362,16 @@ export const HeroInteractive: React.FC = () => {
                 );
               })}
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Hero Bottom Anchor Elements */}
-        <div className="mt-16 pt-8 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-16 pt-8 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground"
+        >
           {/* Bottom Left: Avatars + +120 Técnicos Activos */}
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2 overflow-hidden">
@@ -365,7 +406,7 @@ export const HeroInteractive: React.FC = () => {
               Valencia • Maracay • Caracas • Barquisimeto
             </span>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
