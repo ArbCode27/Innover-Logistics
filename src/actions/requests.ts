@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
 import {
   materialRequestSchema,
   type MaterialRequestInput,
 } from "@/lib/validators/request";
-import { getBranches, getLocations, getItemsCatalog } from "@/actions/inventory";
+import { getBranches } from "@/actions/inventory";
 import type { MaterialRequest, RequestStatus } from "@/types/inventory";
 import type { ActionResult } from "@/actions/transfers";
 
@@ -18,8 +18,6 @@ export interface MaterialRequestWithDetails extends MaterialRequest {
   requester_name: string;
   crew_name: string;
 }
-
-let demoRequests: MaterialRequestWithDetails[] = [];
 
 export const createMaterialRequestAction = async (
   values: MaterialRequestInput
@@ -38,20 +36,12 @@ export const createMaterialRequestAction = async (
   const { branch_id, crew_location_id, item_id, quantity, ticket_ref, notes } = parsed.data;
 
   const branches = await getBranches();
-  const locations = await getLocations();
-  const items = await getItemsCatalog();
-
   const branch = branches.find((b) => b.id === branch_id) || branches[0];
-  const item = items.find((i) => i.id === item_id) || items[0];
-  const crew = locations.find((l) => l.id === crew_location_id) || locations[0];
-
-  const reqNumber = `SOL-${branch.code}-${String(
-    demoRequests.length + 109
-  ).padStart(6, "0")}`;
+  const reqNumber = `SOL-${branch?.code || "REQ"}-${String(Date.now()).slice(-6)}`;
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await (supabase.from("material_requests") as any)
+    const adminSupabase = createAdminClient();
+    const { data, error } = await (adminSupabase.from("material_requests") as any)
       .insert({
         request_number: reqNumber,
         branch_id,
@@ -66,41 +56,21 @@ export const createMaterialRequestAction = async (
       .select()
       .single();
 
-    if (!error && data) {
-      revalidatePath("/solicitudes");
-      return { success: true, data: { request_number: reqNumber } };
+    if (error) {
+      return {
+        success: false,
+        error: error.message || "Error al registrar la solicitud de material en base de datos",
+      };
     }
-  } catch {
-    // Demo fallback
+
+    revalidatePath("/solicitudes");
+    return { success: true, data: { request_number: data?.request_number || reqNumber } };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Error de conexión al crear solicitud de material",
+    };
   }
-
-  const newReq: MaterialRequestWithDetails = {
-    id: `req-${Date.now()}`,
-    request_number: reqNumber,
-    branch_id,
-    requester_id: profile.id,
-    crew_location_id,
-    item_id,
-    quantity,
-    status: "REQUESTED",
-    ticket_ref: ticket_ref || null,
-    notes: notes || null,
-    assigned_document_id: null,
-    approved_by: null,
-    approved_at: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    item_name: item.name,
-    item_sku: item.sku,
-    item_unit: item.unit,
-    requester_name: profile.full_name,
-    crew_name: crew.name,
-  };
-
-  demoRequests = [newReq, ...demoRequests];
-
-  revalidatePath("/solicitudes");
-  return { success: true, data: { request_number: reqNumber } };
 };
 
 export const updateRequestStatusAction = async (
@@ -111,8 +81,8 @@ export const updateRequestStatusAction = async (
   if (!profile) return { success: false, error: "Usuario no autenticado" };
 
   try {
-    const supabase = await createClient();
-    const { error } = await (supabase.from("material_requests") as any)
+    const adminSupabase = createAdminClient();
+    const { error } = await (adminSupabase.from("material_requests") as any)
       .update({
         status: newStatus,
         approved_by: profile.id,
@@ -120,35 +90,29 @@ export const updateRequestStatusAction = async (
       })
       .eq("id", requestId);
 
-    if (!error) {
-      revalidatePath("/solicitudes");
-      return { success: true, data: { status: newStatus } };
+    if (error) {
+      return {
+        success: false,
+        error: error.message || "Error al actualizar el estado de la solicitud",
+      };
     }
-  } catch {
-    // Demo fallback
+
+    revalidatePath("/solicitudes");
+    return { success: true, data: { status: newStatus } };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Error de conexión al actualizar la solicitud",
+    };
   }
-
-  demoRequests = demoRequests.map((r) =>
-    r.id === requestId
-      ? {
-          ...r,
-          status: newStatus,
-          approved_by: profile.id,
-          approved_at: new Date().toISOString(),
-        }
-      : r
-  );
-
-  revalidatePath("/solicitudes");
-  return { success: true, data: { status: newStatus } };
 };
 
 export const getRequestsList = async (
   branchId?: string
 ): Promise<MaterialRequestWithDetails[]> => {
   try {
-    const supabase = await createClient();
-    let query = supabase
+    const adminSupabase = createAdminClient();
+    let query = adminSupabase
       .from("material_requests")
       .select(
         `
@@ -165,23 +129,21 @@ export const getRequestsList = async (
     }
 
     const { data, error } = await query;
-    if (!error && data && data.length > 0) {
-      return (data as any[]).map((r) => ({
-        ...r,
-        item_name: r.item?.name || "Ítem",
-        item_sku: r.item?.sku || "SKU",
-        item_unit: r.item?.unit || "unidades",
-        requester_name: r.requester?.full_name || "Usuario",
-        crew_name: r.crew?.name || "Cuadrilla",
-      }));
+    if (error) {
+      console.error("Error al obtener solicitudes:", error.message || error);
+      return [];
     }
-  } catch {
-    // Demo fallback
-  }
 
-  if (branchId) {
-    return demoRequests.filter((r) => r.branch_id === branchId);
+    return (data || []).map((r: any) => ({
+      ...r,
+      item_name: r.item?.name || "Ítem",
+      item_sku: r.item?.sku || "SKU",
+      item_unit: r.item?.unit || "unidades",
+      requester_name: r.requester?.full_name || "Usuario",
+      crew_name: r.crew?.name || "Cuadrilla",
+    }));
+  } catch (err) {
+    console.error("Excepción en getRequestsList:", err);
+    return [];
   }
-
-  return demoRequests;
 };

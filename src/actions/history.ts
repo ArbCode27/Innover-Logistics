@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
-import { getBranches, getLocations, getItemsCatalog } from "@/actions/inventory";
 import type { ActionResult } from "@/actions/transfers";
 import type { DocumentWithDetails, StockMovement } from "@/types/inventory";
 
@@ -16,14 +15,12 @@ export interface StockMovementWithDetails extends StockMovement {
   creator_name: string;
 }
 
-let demoMovements: StockMovementWithDetails[] = [];
-
 export const getMovementsLedger = async (
   locationId?: string
 ): Promise<StockMovementWithDetails[]> => {
   try {
-    const supabase = await createClient();
-    let query = supabase
+    const adminSupabase = createAdminClient();
+    let query = adminSupabase
       .from("stock_movements")
       .select(
         `
@@ -41,26 +38,24 @@ export const getMovementsLedger = async (
     }
 
     const { data, error } = await query;
-    if (!error && data && data.length > 0) {
-      return (data as any[]).map((m) => ({
-        ...m,
-        item_name: m.item?.name || "Material",
-        item_sku: m.item?.sku || "SKU",
-        item_unit: m.item?.unit || "unidades",
-        location_name: m.location?.name || "Ubicación",
-        doc_number: m.document?.document_number || "DOC-S/N",
-        creator_name: m.creator?.full_name || "Sistema",
-      }));
+    if (error) {
+      console.error("Error al obtener movimientos del libro contable:", error.message || error);
+      return [];
     }
-  } catch {
-    // Demo fallback
-  }
 
-  if (locationId) {
-    return demoMovements.filter((m) => m.location_id === locationId);
+    return (data || []).map((m: any) => ({
+      ...m,
+      item_name: m.item?.name || "Material",
+      item_sku: m.item?.sku || "SKU",
+      item_unit: m.item?.unit || "unidades",
+      location_name: m.location?.name || "Ubicación",
+      doc_number: m.document?.document_number || "DOC-S/N",
+      creator_name: m.creator?.full_name || "Sistema",
+    }));
+  } catch (err) {
+    console.error("Excepción en getMovementsLedger:", err);
+    return [];
   }
-
-  return demoMovements;
 };
 
 export const voidDocumentAction = async (
@@ -75,47 +70,36 @@ export const voidDocumentAction = async (
   if (!profile) return { success: false, error: "Usuario no autenticado" };
 
   try {
-    const supabase = await createClient();
-    const { data, error } = await (supabase as any).rpc("rpc_void_document", {
+    const adminSupabase = createAdminClient();
+    const { data, error } = await (adminSupabase as any).rpc("rpc_void_document", {
       p_document_id: documentId,
       p_cancellation_reason: cancellationReason.trim(),
     });
 
-    if (!error && data) {
-      revalidatePath("/historial");
-      revalidatePath("/inventario");
-      return { success: true, data: { status: "CANCELLED" } };
+    if (error) {
+      return {
+        success: false,
+        error: error.message || "Error al anular el documento en base de datos",
+      };
     }
-  } catch {
-    // Demo fallback
+
+    revalidatePath("/historial");
+    revalidatePath("/inventario");
+    return { success: true, data: { status: data?.status || "CANCELLED" } };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Error de conexión al anular el documento",
+    };
   }
-
-  // Create contra-asiento in demo ledger
-  const originalMovs = demoMovements.filter((m) => m.document_id === documentId);
-  const voidMovements: StockMovementWithDetails[] = originalMovs.map((m) => ({
-    ...m,
-    id: `void-${Date.now()}-${m.id}`,
-    quantity: -m.quantity, // Reversed contra-asiento
-    movement_type: "void",
-    created_by: profile.id,
-    created_at: new Date().toISOString(),
-    creator_name: profile.full_name,
-  }));
-
-  demoMovements = [...voidMovements, ...demoMovements];
-
-  revalidatePath("/historial");
-  revalidatePath("/inventario");
-
-  return { success: true, data: { status: "CANCELLED" } };
 };
 
 export const getDocumentVoucherDetails = async (
   documentId: string
 ): Promise<DocumentWithDetails | null> => {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data, error } = await adminSupabase
       .from("documents")
       .select(
         `
@@ -134,12 +118,14 @@ export const getDocumentVoucherDetails = async (
       .eq("id", documentId)
       .single();
 
-    if (!error && data) {
-      return data as unknown as DocumentWithDetails;
+    if (error) {
+      console.error("Error al obtener detalle del comprobante:", error.message || error);
+      return null;
     }
-  } catch {
-    // Demo fallback
-  }
 
-  return null;
+    return (data || null) as unknown as DocumentWithDetails | null;
+  } catch (err) {
+    console.error("Excepción en getDocumentVoucherDetails:", err);
+    return null;
+  }
 };

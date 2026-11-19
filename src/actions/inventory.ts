@@ -451,7 +451,7 @@ export const registerLocalPurchaseAction = async (input: {
     );
 
     if (rpcError) {
-      return { success: false, error: rpcError.message };
+      return { success: false, error: `Error de base de datos: ${rpcError.message}` };
     }
 
     const res = rpcResult as any;
@@ -464,14 +464,9 @@ export const registerLocalPurchaseAction = async (input: {
       message: `Comprobante de compra local ${res.document_number} emitido exitosamente (+${input.quantity} en stock).`,
     };
   } catch (err: any) {
-    const fakeDoc = `COM-LOC-${Math.floor(100000 + Math.random() * 900000)}`;
-    revalidatePath("/inventario");
-    revalidatePath("/historial");
-
     return {
-      success: true,
-      document_number: fakeDoc,
-      message: `Comprobante local ${fakeDoc} registrado exitosamente (+${input.quantity} unidades).`,
+      success: false,
+      error: err?.message || "Error al conectar con la base de datos para registrar la compra local",
     };
   }
 };

@@ -452,7 +452,7 @@ export const registerPurchaseAction = async (
     if (rpcError) {
       return {
         success: false,
-        error: rpcError.message,
+        error: `Error de base de datos: ${rpcError.message}`,
       };
     }
 
@@ -468,17 +468,9 @@ export const registerPurchaseAction = async (
       message: `Comprobante de compra ${res.document_number} emitido exitosamente (+${input.quantity} en stock).`,
     };
   } catch (err: any) {
-    console.warn("[Register Purchase] Fallback de registro:", err);
-
-    // Correlativo fallback
-    const fakeDoc = `COM-LOC-${Math.floor(100000 + Math.random() * 900000)}`;
-    revalidatePath("/inventario");
-
     return {
-      success: true,
-      document_number: fakeDoc,
-      item_id: finalItemId,
-      message: `Comprobante ${fakeDoc} registrado exitosamente (+${input.quantity} unidades).`,
+      success: false,
+      error: err?.message || "Error al registrar la compra en el servidor",
     };
   }
 };
