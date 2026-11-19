@@ -522,7 +522,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <TableCell className="text-right font-mono font-bold text-base">
                       <div className="flex items-center justify-end gap-1.5">
                         {item.is_low_stock && (
-                          <span title="Stock por debajo o igual al mínimo">
+                          <span title="Stock por debajo del mínimo">
                             <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                           </span>
                         )}

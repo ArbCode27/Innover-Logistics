@@ -357,7 +357,7 @@ export const getInventoryStock = async (
           location_id: selectedLoc.id,
           location_name: selectedLoc.name,
           branch_name: selectedBranch.name,
-          is_low_stock: qty <= Number(item.min_stock),
+          is_low_stock: qty < Number(item.min_stock),
         };
       });
     }

@@ -118,7 +118,7 @@ export const getCrewStock = async (
         location_id: crew.id,
         location_name: crew.name,
         branch_name: "",
-        is_low_stock: (balanceMap.get(item.id) || 0) <= Number(item.min_stock),
+        is_low_stock: (balanceMap.get(item.id) || 0) < Number(item.min_stock),
       }));
     }
   } catch (err) {
