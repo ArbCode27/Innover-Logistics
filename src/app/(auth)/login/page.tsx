@@ -87,7 +87,8 @@ export default function LoginPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl font-bold">Iniciar Sesión</CardTitle>
             <CardDescription className="text-slate-400">
-              Ingrese con sus credenciales autorizadas del sistema de inventario.
+              Ingrese con sus credenciales autorizadas del sistema de
+              inventario.
             </CardDescription>
           </CardHeader>
 
@@ -95,8 +96,7 @@ export default function LoginPage() {
             {authError && (
               <div
                 role="alert"
-                className="mb-4 flex items-start gap-2 rounded-md bg-destructive/15 border border-destructive/30 p-3 text-sm text-red-400"
-              >
+                className="mb-4 flex items-start gap-2 rounded-md bg-destructive/15 border border-destructive/30 p-3 text-sm text-red-400">
                 <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
                 <span>{authError}</span>
               </div>
@@ -121,8 +121,7 @@ export default function LoginPage() {
                   <p
                     id="email-error"
                     className="text-xs text-red-400"
-                    role="alert"
-                  >
+                    role="alert">
                     {errors.email.message}
                   </p>
                 )}
@@ -133,9 +132,6 @@ export default function LoginPage() {
                   <Label htmlFor="password" className="text-slate-200">
                     Contraseña
                   </Label>
-                  <span className="text-xs text-slate-400">
-                    Demo: star1234
-                  </span>
                 </div>
                 <Input
                   id="password"
@@ -153,8 +149,7 @@ export default function LoginPage() {
                   <p
                     id="password-error"
                     className="text-xs text-red-400"
-                    role="alert"
-                  >
+                    role="alert">
                     {errors.password.message}
                   </p>
                 )}
@@ -163,8 +158,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full gap-2 font-semibold shadow-md bg-blue-600 hover:bg-blue-500 text-white"
-              >
+                className="w-full gap-2 font-semibold shadow-md bg-blue-600 hover:bg-blue-500 text-white">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
