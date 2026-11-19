@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
+import { formatDatabaseError } from "@/lib/utils";
 import type { ActionResult } from "@/actions/transfers";
 import type { DocumentWithDetails, StockMovement } from "@/types/inventory";
 
@@ -79,7 +80,7 @@ export const voidDocumentAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al anular el documento en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
@@ -89,7 +90,7 @@ export const voidDocumentAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al anular el documento",
+      error: formatDatabaseError(err),
     };
   }
 };

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
 import { getLocations, getItemsCatalog } from "@/actions/inventory";
+import { formatDatabaseError } from "@/lib/utils";
 import type {
   ExtractedLabelData,
   RegisterPurchaseInput,
@@ -452,7 +453,7 @@ export const registerPurchaseAction = async (
     if (rpcError) {
       return {
         success: false,
-        error: `Error de base de datos: ${rpcError.message}`,
+        error: formatDatabaseError(rpcError),
       };
     }
 
@@ -470,7 +471,7 @@ export const registerPurchaseAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error al registrar la compra en el servidor",
+      error: formatDatabaseError(err),
     };
   }
 };

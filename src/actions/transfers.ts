@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
+import { formatDatabaseError } from "@/lib/utils";
 import {
   issueTransferSchema,
   acceptTransferSchema,
@@ -47,14 +48,14 @@ export const issueTransferAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al emitir la guía de traslado en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
     if (!data?.document_number) {
       return {
         success: false,
-        error: "No se recibió el número de correlativo de la guía",
+        error: "No se recibió el número de correlativo de la guía.",
       };
     }
 
@@ -69,7 +70,7 @@ export const issueTransferAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error inesperado al conectar con el servidor de base de datos",
+      error: formatDatabaseError(err),
     };
   }
 };
@@ -99,7 +100,7 @@ export const acceptTransferAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al procesar la guía en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
@@ -113,7 +114,7 @@ export const acceptTransferAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al procesar la guía",
+      error: formatDatabaseError(err),
     };
   }
 };

@@ -8,6 +8,7 @@ import {
   type MaterialRequestInput,
 } from "@/lib/validators/request";
 import { getBranches } from "@/actions/inventory";
+import { formatDatabaseError } from "@/lib/utils";
 import type { MaterialRequest, RequestStatus } from "@/types/inventory";
 import type { ActionResult } from "@/actions/transfers";
 
@@ -59,7 +60,7 @@ export const createMaterialRequestAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al registrar la solicitud de material en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
@@ -68,7 +69,7 @@ export const createMaterialRequestAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al crear solicitud de material",
+      error: formatDatabaseError(err),
     };
   }
 };
@@ -93,7 +94,7 @@ export const updateRequestStatusAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al actualizar el estado de la solicitud",
+        error: formatDatabaseError(error),
       };
     }
 
@@ -102,7 +103,7 @@ export const updateRequestStatusAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al actualizar la solicitud",
+      error: formatDatabaseError(err),
     };
   }
 };

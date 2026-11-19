@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
 import { getLocations, getItemsCatalog } from "@/actions/inventory";
+import { formatDatabaseError } from "@/lib/utils";
 import type { ActionResult } from "@/actions/transfers";
 import type { StockItemWithBalance } from "@/types/inventory";
 
@@ -28,14 +29,14 @@ export const assignStockToCrewAction = async (values: {
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al asignar material a la cuadrilla en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
     if (!data?.document_number) {
       return {
         success: false,
-        error: "No se recibió el número de documento de asignación",
+        error: "No se recibió el número de documento de asignación.",
       };
     }
 
@@ -45,7 +46,7 @@ export const assignStockToCrewAction = async (values: {
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al asignar material a la cuadrilla",
+      error: formatDatabaseError(err),
     };
   }
 };
@@ -78,7 +79,7 @@ export const createCrewLocationAction = async (data: {
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al registrar la cuadrilla en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
@@ -88,7 +89,7 @@ export const createCrewLocationAction = async (data: {
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al registrar la cuadrilla",
+      error: formatDatabaseError(err),
     };
   }
 };

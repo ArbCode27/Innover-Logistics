@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
+import { formatDatabaseError } from "@/lib/utils";
 import {
   dispatchOrderFormSchema,
   type DispatchOrderInput,
@@ -59,14 +60,14 @@ export const createDispatchOrderAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al emitir orden de despacho en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
     if (!data?.success) {
       return {
         success: false,
-        error: "No se pudo procesar la orden de despacho",
+        error: "No se pudo procesar la orden de salida. Verifique los datos e intente nuevamente.",
       };
     }
 
@@ -84,7 +85,7 @@ export const createDispatchOrderAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al emitir orden de despacho",
+      error: formatDatabaseError(err),
     };
   }
 };

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
+import { formatDatabaseError } from "@/lib/utils";
 import {
   consumptionSchema,
   type ConsumptionInput,
@@ -41,14 +42,14 @@ export const consumeStockAction = async (
     if (error) {
       return {
         success: false,
-        error: error.message || "Error al procesar el consumo de stock en base de datos",
+        error: formatDatabaseError(error),
       };
     }
 
     if (!data?.document_number) {
       return {
         success: false,
-        error: "No se recibió confirmación del documento de consumo",
+        error: "No se recibió confirmación del documento de consumo.",
       };
     }
 
@@ -63,7 +64,7 @@ export const consumeStockAction = async (
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error de conexión al procesar el consumo",
+      error: formatDatabaseError(err),
     };
   }
 };

@@ -4,6 +4,7 @@ import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
+import { formatDatabaseError } from "@/lib/utils";
 import type {
   Branch,
   Item,
@@ -451,7 +452,7 @@ export const registerLocalPurchaseAction = async (input: {
     );
 
     if (rpcError) {
-      return { success: false, error: `Error de base de datos: ${rpcError.message}` };
+      return { success: false, error: formatDatabaseError(rpcError) };
     }
 
     const res = rpcResult as any;
@@ -466,7 +467,7 @@ export const registerLocalPurchaseAction = async (input: {
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "Error al conectar con la base de datos para registrar la compra local",
+      error: formatDatabaseError(err),
     };
   }
 };
