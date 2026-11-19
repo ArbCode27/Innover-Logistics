@@ -43,7 +43,21 @@ export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnaly
         }
       }
 
-      // 2b. Intento 2: Coincidencia por modelo en el nombre si no hubo coincidencia por SKU
+      // 2b. Intento 2: Coincidencia por nombre sugerido (ej. "ONU Lanly doble banda")
+      if (!matchedItem && extractedData.suggested_name && extractedData.suggested_name.trim().length >= 3) {
+        const { data: byName } = await supabase
+          .from("items")
+          .select("*")
+          .eq("is_active", true)
+          .ilike("name", `%${extractedData.suggested_name.trim()}%`)
+          .limit(1);
+
+        if (byName && (byName as any[]).length > 0) {
+          matchedItem = (byName as any[])[0];
+        }
+      }
+
+      // 2c. Intento 3: Coincidencia por modelo en el nombre si no hubo coincidencia por SKU
       if (!matchedItem && extractedData.model && extractedData.model.trim().length >= 3) {
         const { data: byModel } = await supabase
           .from("items")
@@ -64,15 +78,29 @@ export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnaly
         extractedData.suggested_sku = matchedItem.sku;
         extractedData.category = matchedItem.category;
 
-        // Comprobación de duplicados de Serial y MAC si el producto ya existe
-        if (extractedData.serial_number) {
-          const dupCheck = await checkSerialAndMacDuplicate(
-            matchedItem.id,
-            extractedData.serial_number,
-            extractedData.mac_address
+        const serialsToCheck = (
+          extractedData.serial_numbers?.length
+            ? extractedData.serial_numbers
+            : extractedData.serial_number
+              ? [extractedData.serial_number]
+              : []
+        ).map((serial) => serial.trim().toUpperCase());
+
+        if (serialsToCheck.length > 0) {
+          const duplicateFlags = await Promise.all(
+            serialsToCheck.map(async (serial) => {
+              const dupCheck = await checkSerialAndMacDuplicate(
+                matchedItem.id,
+                serial,
+                serialsToCheck.length === 1 ? extractedData.mac_address : undefined
+              );
+              return dupCheck.isSerialDuplicate || dupCheck.isMacDuplicate ? serial : null;
+            })
           );
 
-          if (dupCheck.isSerialDuplicate || dupCheck.isMacDuplicate) {
+          const duplicates = duplicateFlags.filter((serial): serial is string => Boolean(serial));
+          if (duplicates.length > 0) {
+            extractedData.duplicate_serials = duplicates;
             extractedData.is_duplicate_serial = true;
           }
         }

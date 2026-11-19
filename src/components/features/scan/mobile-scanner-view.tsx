@@ -44,7 +44,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
   const [torchOn, setTorchOn] = React.useState<boolean>(false);
   const [wakeLockActive, setWakeLockActive] = React.useState<boolean>(false);
   const [statusMessage, setStatusMessage] = React.useState<string>(
-    "Apunta a la etiqueta con el Serial y MAC"
+    "Apunta a la etiqueta o a la hoja completa de seriales"
   );
   const [lastSavedSerial, setLastSavedSerial] = React.useState<string | null>(
     null
@@ -404,11 +404,16 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
           });
         }
 
+        const serialCount = result.data.serial_numbers?.length || (result.data.serial_number ? 1 : 0);
         const sn = result.data.serial_number || "Equipo";
         const mac = result.data.mac_address
           ? ` | MAC: ${result.data.mac_address}`
           : "";
-        setStatusMessage(`Detectado: ${sn}${mac}. Revisando en PC...`);
+        setStatusMessage(
+          serialCount > 1
+            ? `Hoja leída: ${serialCount} seriales. Cada uno es 1 equipo en la PC.`
+            : `Detectado: ${sn}${mac}. Revisando en PC...`
+        );
 
         if (typeof window !== "undefined" && "vibrate" in navigator) {
           navigator.vibrate([50, 40, 50]);
@@ -533,7 +538,7 @@ export const MobileScannerView: React.FC<MobileScannerViewProps> = ({
             {/* Guía visual de alineación para la etiqueta */}
             <div className="relative z-10 w-[84%] max-w-sm aspect-[4/3] rounded-2xl border-2 border-dashed border-emerald-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] flex flex-col justify-between p-4 pointer-events-none">
               <div className="flex justify-between items-center text-[11px] font-mono text-emerald-300 bg-black/50 px-2 py-0.5 rounded backdrop-blur-sm self-start">
-                <span>SERIAL + MAC</span>
+                <span>ETIQUETA O HOJA DE SERIALES</span>
               </div>
 
               {/* Centro de mira */}

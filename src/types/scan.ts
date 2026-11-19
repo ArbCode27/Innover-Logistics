@@ -23,6 +23,10 @@ export interface ExtractedLabelData {
   brand?: string;
   model?: string;
   serial_number?: string;
+  /** Todos los seriales de una hoja de caja. Uno por equipo. */
+  serial_numbers?: string[];
+  /** Cantidad de equipos que representa la captura. */
+  quantity?: number;
   pon_sn?: string;
   mac_address?: string;
   suggested_sku?: string;
@@ -35,6 +39,8 @@ export interface ExtractedLabelData {
   detected_barcodes?: string[];
   matched_item_id?: string;
   is_duplicate_serial?: boolean;
+  /** Seriales de la hoja que ya existen en inventario. */
+  duplicate_serials?: string[];
   is_new_catalog_item?: boolean;
 }
 

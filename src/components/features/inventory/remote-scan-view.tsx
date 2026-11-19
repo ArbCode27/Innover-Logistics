@@ -106,6 +106,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
   // Serial y MAC simultáneos
   const [serialNumber, setSerialNumber] = React.useState<string>("");
+  const [sheetSerials, setSheetSerials] = React.useState<string[]>([]);
   const [macAddress, setMacAddress] = React.useState<string>("");
   const [isDuplicateSerial, setIsDuplicateSerial] =
     React.useState<boolean>(false);
@@ -171,12 +172,27 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
   ) => {
     setExtractedData(data);
 
+    const detectedSerials = (
+      data.serial_numbers?.length
+        ? data.serial_numbers
+        : data.serial_number
+          ? [data.serial_number]
+          : []
+    )
+      .map((serial) => serial.trim().toUpperCase())
+      .filter((serial, index, list) => serial.length > 0 && list.indexOf(serial) === index);
+    const isSheet = detectedSerials.length > 1;
+
+    setSheetSerials(isSheet ? detectedSerials : []);
+
     // 1. Serial y MAC simultáneos
-    if (data.serial_number) {
-      setSerialNumber(data.serial_number);
+    if (detectedSerials[0]) {
+      setSerialNumber(detectedSerials[0]);
     }
-    if (data.mac_address) {
+    if (data.mac_address && !isSheet) {
       setMacAddress(data.mac_address);
+    } else if (isSheet) {
+      setMacAddress("");
     }
 
     // 2. Coincidencia con catálogo o producto nuevo
@@ -184,7 +200,16 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       setSelectedItemId(data.matched_item_id);
       setIsNewItemMode(false);
       setIsSkuConfirmed(true);
-      toast.info(`Producto identificado en catálogo: ${data.suggested_name}`);
+      toast.info(
+        isSheet
+          ? `${detectedSerials.length} seriales de "${data.suggested_name}". Cada uno se registra como 1 unidad.`
+          : `Producto identificado en catálogo: ${data.suggested_name}`
+      );
+    } else if (isSheet) {
+      setIsNewItemMode(false);
+      toast.success(
+        `Hoja con ${detectedSerials.length} seriales. Elige el producto (por ejemplo ONU Lanly doble banda) y guarda los ${detectedSerials.length} equipos.`
+      );
     } else {
       // No existe en catálogo
       const isAdmin = userRole === "superadmin" || userRole === "admin_sucursal";
@@ -209,10 +234,10 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
     // Verificar duplicados si se asoció un ítem
     const targetItem = data.matched_item_id || selectedItemId;
-    if (targetItem && data.serial_number) {
+    if (targetItem && detectedSerials[0] && !isSheet) {
       checkSerialAndMacDuplicate(
         targetItem,
-        data.serial_number,
+        detectedSerials[0],
         data.mac_address
       ).then((res) => {
         setIsDuplicateSerial(res.isSerialDuplicate);
@@ -221,6 +246,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
           toast.error("¡Atención! Este número de serie ya está registrado.");
         }
       });
+    } else if (isSheet) {
+      setIsDuplicateSerial(false);
+      setIsDuplicateMac(false);
     }
   };
 
@@ -361,69 +389,102 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       }
     }
 
-    if (!serialNumber.trim()) {
+    const serialsToSave = (
+      sheetSerials.length > 1 ? sheetSerials : [serialNumber.trim().toUpperCase()]
+    ).filter(Boolean);
+
+    if (serialsToSave.length === 0) {
       toast.error("El número de serie es obligatorio. Escríbelo o tómale una foto más clara.");
       return;
     }
 
-    if (isDuplicateSerial) {
+    if (serialsToSave.length === 1 && isDuplicateSerial) {
       toast.error("No se puede guardar un serial duplicado");
       return;
     }
 
     setIsSubmitting(true);
 
-    const input: RegisterPurchaseInput = {
-      location_id: selectedLocationId,
-      quantity: 1, // Registro unitario por serie
-      serial_number: serialNumber.trim(),
-      mac_address: macAddress.trim() || undefined,
-      ticket_ref: ticketRef.trim() || undefined,
-      supplier_notes: supplierNotes.trim() || undefined,
-      image_url: capturedImage || undefined,
-      is_new_item: isNewItemMode,
-      new_item: isNewItemMode
-        ? {
-            sku: newItemSku.trim(),
-            name: newItemName.trim(),
-            category: newItemCategory,
-            unit: "unidades",
-            is_serialized: true,
-            image_url: capturedImage || undefined,
-          }
-        : undefined,
-    };
-
-    if (!isNewItemMode) {
-      input.item_id = selectedItemId;
-    }
+    const knownDuplicates = new Set(
+      (extractedData?.duplicate_serials || []).map((serial) => serial.trim().toUpperCase())
+    );
+    let activeItemId = isNewItemMode ? undefined : selectedItemId;
+    let createdNewItem = false;
+    let saved = 0;
+    let skipped = 0;
+    let lastDocument = "";
 
     try {
-      const result = await registerPurchaseAction(input);
+      for (const serial of serialsToSave) {
+        if (knownDuplicates.has(serial)) {
+          skipped += 1;
+          continue;
+        }
 
-      if (!result.success) {
-        toast.error(result.error || "Error al procesar el ingreso");
+        const creatingItem = isNewItemMode && !activeItemId;
+        const input: RegisterPurchaseInput = {
+          location_id: selectedLocationId,
+          quantity: 1,
+          serial_number: serial,
+          mac_address: serialsToSave.length === 1 ? macAddress.trim() || undefined : undefined,
+          ticket_ref: ticketRef.trim() || undefined,
+          supplier_notes: supplierNotes.trim() || undefined,
+          image_url: capturedImage || undefined,
+          is_new_item: creatingItem,
+          new_item: creatingItem
+            ? {
+                sku: newItemSku.trim(),
+                name: newItemName.trim(),
+                category: newItemCategory,
+                unit: "unidades",
+                is_serialized: true,
+                image_url: capturedImage || undefined,
+              }
+            : undefined,
+          item_id: activeItemId,
+        };
+
+        const result = await registerPurchaseAction(input);
+        if (!result.success) {
+          toast.error(result.error || `No se pudo registrar ${serial}`);
+          continue;
+        }
+
+        saved += 1;
+        lastDocument = result.document_number || lastDocument;
+        if (creatingItem && result.item_id) {
+          activeItemId = result.item_id;
+          createdNewItem = true;
+        }
+      }
+
+      if (saved === 0) {
+        toast.error("No se registró ningún equipo de esta captura.");
         return;
       }
 
-      toast.success(result.message || "Ingreso registrado correctamente");
+      const productLabel = isNewItemMode ? newItemName.trim() : currentSelectedItem?.name || "equipo";
+      toast.success(
+        serialsToSave.length > 1
+          ? `Registradas ${saved} unidades de "${productLabel}".${skipped ? ` ${skipped} ya existían.` : ""}`
+          : "Ingreso registrado correctamente"
+      );
 
-      // Notificar al teléfono para que muestre checkmark y quede listo para el siguiente
       if (channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
           event: "scan_saved",
           payload: {
-            serial: serialNumber,
-            document_number: result.document_number,
+            serial: serialsToSave[0],
+            quantity: saved,
+            document_number: lastDocument,
           },
         });
       }
 
-      // Si se dio de alta un ítem nuevo, agregarlo a la lista local
-      if (isNewItemMode && result.item_id) {
+      if (createdNewItem && activeItemId) {
         const newlyCreatedItem: Item = {
-          id: result.item_id,
+          id: activeItemId,
           sku: newItemSku,
           name: newItemName,
           category: newItemCategory,
@@ -437,21 +498,21 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
           updated_at: new Date().toISOString(),
         };
         setItems((prev) => [newlyCreatedItem, ...prev]);
-        setSelectedItemId(result.item_id);
+        setSelectedItemId(activeItemId);
         setIsNewItemMode(false);
       }
 
-      // Preparar para el siguiente equipo
       if (continuousMode) {
         setSerialNumber("");
+        setSheetSerials([]);
         setMacAddress("");
         setIsDuplicateSerial(false);
         setIsDuplicateMac(false);
         setExtractedData(null);
-        // Mantiene la ubicación y notas para agilizar la jornada
       } else {
         setCapturedImage(null);
         setSerialNumber("");
+        setSheetSerials([]);
         setMacAddress("");
       }
     } catch (err: any) {
@@ -949,16 +1010,32 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   </div>
                   <Input
                     id="serial-input"
-                    value={serialNumber}
+                    value={sheetSerials.length > 1 ? `${sheetSerials.length} seriales de la hoja` : serialNumber}
                     onChange={(e) => {
+                      if (sheetSerials.length > 1) return;
                       setSerialNumber(e.target.value);
                       setIsDuplicateSerial(false);
                     }}
+                    readOnly={sheetSerials.length > 1}
                     placeholder="Ej: 48575443A1B2C3D4"
                     className={`h-10 font-mono text-xs uppercase ${
                       isDuplicateSerial ? "border-red-500 focus-visible:ring-red-500" : ""
                     }`}
                   />
+                  {sheetSerials.length > 1 && (
+                    <div className="max-h-36 overflow-y-auto rounded-md border bg-background p-2">
+                      <p className="mb-1.5 text-[11px] text-muted-foreground">
+                        Cada código es 1 unidad del producto seleccionado.
+                      </p>
+                      <ul className="grid grid-cols-2 gap-1">
+                        {sheetSerials.map((serial) => (
+                          <li key={serial} className="font-mono text-[11px] text-foreground">
+                            {serial}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -1029,8 +1106,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                 size="lg"
                 disabled={
                   isSubmitting ||
-                  !serialNumber ||
-                  isDuplicateSerial ||
+                  (sheetSerials.length === 0 && !serialNumber) ||
+                  (sheetSerials.length <= 1 && isDuplicateSerial) ||
                   (isNewItemMode && !isSkuConfirmed)
                 }
                 onClick={handleSavePurchase}
@@ -1044,7 +1121,11 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4" />
-                    <span>Guardar entrada</span>
+                    <span>
+                      {sheetSerials.length > 1
+                        ? `Guardar ${sheetSerials.length} equipos`
+                        : "Guardar entrada"}
+                    </span>
                   </>
                 )}
               </Button>

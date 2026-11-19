@@ -395,23 +395,37 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
     async (data: ExtractedLabelData, imageUrl?: string) => {
       if (imageUrl) setRemoteCapturedImage(imageUrl);
 
-      const detectedSn = data.serial_number?.trim() || "";
-      const detectedMac = data.mac_address?.trim() || "";
+      const detectedSerials = (
+        data.serial_numbers?.length
+          ? data.serial_numbers
+          : data.serial_number
+            ? [data.serial_number]
+            : []
+      )
+        .map((serial) => serial.trim().toUpperCase())
+        .filter((serial, index, list) => serial.length > 0 && list.indexOf(serial) === index);
+
+      const detectedMac = detectedSerials.length > 1 ? "" : data.mac_address?.trim() || "";
+      const knownDuplicates = new Set(
+        (data.duplicate_serials || []).map((serial) => serial.trim().toUpperCase())
+      );
 
       // Si no detectó serial ni MAC
-      if (!detectedSn && !detectedMac) {
+      if (detectedSerials.length === 0 && !detectedMac) {
         toast.warning(
           "Foto recibida, pero no se reconoció el código de barras o serial. Enfoca más de cerca o ingresa los datos manualmente."
         );
         return;
       }
 
-      // Rellenar formulario activo
-      if (detectedSn) {
-        setSerialNumber(detectedSn);
+      // Rellenar formulario activo con el primer serial
+      if (detectedSerials[0]) {
+        setSerialNumber(detectedSerials[0]);
       }
       if (detectedMac) {
         setMacAddress(detectedMac);
+      } else if (detectedSerials.length > 1) {
+        setMacAddress("");
       }
 
       let activeItem = currentItem;
@@ -421,36 +435,69 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
         if (found) activeItem = found;
       }
 
-      let isDup = false;
-      if (detectedSn) {
-        isDup = await handleVerifyDuplicates(detectedSn, detectedMac || macAddress);
+      if (!activeItem) {
+        toast.error("Selecciona primero el producto. Por ejemplo: ONU Lanly doble banda.");
+        return;
       }
 
-      // Crear nuevo borrador encolado en la lista de items detectados
-      const newDraft: PendingScanDraft = {
+      const duplicateFlags = await Promise.all(
+        detectedSerials.map(async (serial) => {
+          if (knownDuplicates.has(serial)) return true;
+          if (!activeItem?.id) return false;
+          if (detectedSerials.length === 1) {
+            return handleVerifyDuplicates(serial, detectedMac || macAddress);
+          }
+          const res = await checkSerialAndMacDuplicate(activeItem.id, serial);
+          return res.isSerialDuplicate;
+        })
+      );
+
+      const drafts: PendingScanDraft[] = detectedSerials.map((serial, index) => ({
         id: crypto.randomUUID(),
-        imageUrl: imageUrl,
-        serialNumber: detectedSn,
+        imageUrl,
+        serialNumber: serial,
         macAddress: detectedMac || undefined,
         matchedItemId: activeItem.id,
         itemName: activeItem.name,
         sku: activeItem.sku,
         timestamp: Date.now(),
-        isDuplicate: isDup,
-      };
+        isDuplicate: duplicateFlags[index],
+      }));
 
+      if (drafts.length === 0 && detectedMac) {
+        drafts.push({
+          id: crypto.randomUUID(),
+          imageUrl,
+          serialNumber: "",
+          macAddress: detectedMac,
+          matchedItemId: activeItem.id,
+          itemName: activeItem.name,
+          sku: activeItem.sku,
+          timestamp: Date.now(),
+          isDuplicate: false,
+        });
+      }
+
+      let addedCount = 0;
       setPendingDrafts((prev) => {
-        // Evitar duplicar el mismo serial dentro de la lista de borradores pendientes
-        if (detectedSn && prev.some((p) => p.serialNumber === detectedSn)) {
-          return prev;
-        }
-        return [newDraft, ...prev];
+        const existing = new Set(prev.map((draft) => draft.serialNumber.toUpperCase()));
+        const fresh = drafts.filter((draft) => draft.serialNumber && !existing.has(draft.serialNumber.toUpperCase()));
+        addedCount = fresh.length;
+        if (fresh.length === 0) return prev;
+        return [...fresh, ...prev];
       });
 
       playSuccessFeedback();
-      toast.success(
-        `Detectado: ${detectedSn || "Equipo"}${detectedMac ? ` (MAC: ${detectedMac})` : ""} - Agregado a la lista`
-      );
+      if (detectedSerials.length > 1) {
+        setActiveRightTab("drafts");
+        toast.success(
+          `Hoja de seriales: ${addedCount} equipos de "${activeItem.name}". Cada serial es 1 unidad.`
+        );
+      } else {
+        toast.success(
+          `Detectado: ${detectedSerials[0] || "Equipo"}${detectedMac ? ` (MAC: ${detectedMac})` : ""} - Agregado a la lista`
+        );
+      }
     },
     [currentItem, items, macAddress, handleVerifyDuplicates, playSuccessFeedback]
   );
@@ -618,7 +665,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
     setIsScanningOcr(true);
     try {
       const canvas = canvasRef.current || document.createElement("canvas");
-      const maxWidth = 1400;
+      const maxWidth = 1800;
       let width = video.videoWidth;
       let height = video.videoHeight;
 
@@ -633,7 +680,22 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
       if (!ctx) throw new Error("Canvas context no disponible");
 
       ctx.drawImage(video, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+
+      let localBarcodes: string[] = [];
+      try {
+        if (typeof window !== "undefined" && "BarcodeDetector" in window) {
+          const barcodeDetector = new (window as any).BarcodeDetector({
+            formats: ["code_128", "code_39", "ean_13", "qr_code", "data_matrix"],
+          });
+          const detected = await barcodeDetector.detect(canvas);
+          if (detected && detected.length > 0) {
+            localBarcodes = detected.map((barcode: { rawValue?: string }) => barcode.rawValue || "").filter(Boolean);
+          }
+        }
+      } catch {
+        localBarcodes = [];
+      }
 
       const response = await fetch("/api/scan/analyze", {
         method: "POST",
@@ -641,7 +703,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
         body: JSON.stringify({
           sessionId: "modal-camera-session",
           image: dataUrl,
-          barcodes: [],
+          barcodes: localBarcodes,
         }),
       });
 
@@ -669,8 +731,9 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
       itemId?: string;
       serialNumber?: string;
       macAddress?: string;
-    }
-  ): Promise<void> => {
+    },
+    options?: { silent?: boolean }
+  ): Promise<boolean> => {
     if (e) e.preventDefault();
 
     const targetItemId = overrideData?.itemId || selectedItemId;
@@ -678,21 +741,21 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
     const targetMac = (overrideData?.macAddress ?? macAddress).trim().toUpperCase();
 
     if (!selectedLocationId) {
-      toast.error("Seleccione la ubicación de almacén");
-      return;
+      if (!options?.silent) toast.error("Seleccione la ubicación de almacén");
+      return false;
     }
 
     if (!targetItemId) {
-      toast.error("Seleccione un producto");
-      return;
+      if (!options?.silent) toast.error("Seleccione un producto");
+      return false;
     }
 
     const itemToRegister = items.find((i) => i.id === targetItemId) || currentItem;
     const itemIsSerialized = Boolean(itemToRegister?.is_serialized);
 
     if (itemIsSerialized && !targetSn) {
-      toast.error("El número de serie (SN) es obligatorio");
-      return;
+      if (!options?.silent) toast.error("El número de serie (SN) es obligatorio");
+      return false;
     }
 
     setIsSubmitting(true);
@@ -709,14 +772,16 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
       });
 
       if (!res.success) {
-        toast.error(res.error || "Error al procesar el ingreso");
-        return;
+        if (!options?.silent) toast.error(res.error || "Error al procesar el ingreso");
+        return false;
       }
 
       playSuccessFeedback();
-      toast.success(
-        `Registrado: ${itemToRegister.name} (+${itemIsSerialized ? 1 : quantity} ${itemToRegister.unit})`
-      );
+      if (!options?.silent) {
+        toast.success(
+          `Registrado: ${itemToRegister.name} (+${itemIsSerialized ? 1 : quantity} ${itemToRegister.unit})`
+        );
+      }
 
       // Notify connected phone if active
       if (channelRef.current) {
@@ -760,10 +825,42 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
       if (onSuccessRegistration) {
         onSuccessRegistration();
       }
+      return true;
     } catch (err: any) {
-      toast.error(err.message || "Error al procesar ingreso");
+      if (!options?.silent) toast.error(err.message || "Error al procesar ingreso");
+      return false;
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRegisterAllDrafts = async (): Promise<void> => {
+    const queue = pendingDrafts.filter((draft) => draft.serialNumber && !draft.isDuplicate);
+    if (queue.length === 0) {
+      toast.error("No hay seriales nuevos para registrar. Revisa los marcados como duplicados.");
+      return;
+    }
+
+    const productName = queue[0]?.itemName || currentItem.name;
+    let saved = 0;
+    for (const draft of queue) {
+      const ok = await handleSaveProduct(
+        undefined,
+        {
+          itemId: draft.matchedItemId,
+          serialNumber: draft.serialNumber,
+          macAddress: draft.macAddress,
+        },
+        { silent: true }
+      );
+      if (ok) saved += 1;
+    }
+
+    if (saved > 0) {
+      toast.success(`Registradas ${saved} unidades de "${productName}". Cada serial quedó como 1 equipo.`);
+      setActiveRightTab("history");
+    } else {
+      toast.error("No se pudo registrar la hoja de seriales.");
     }
   };
 
@@ -968,7 +1065,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                           <Scan className="h-8 w-8 text-emerald-400/60 animate-pulse" />
                         </div>
                         <div className="text-[10px] text-center text-white/90 bg-black/60 rounded px-2 py-0.5 backdrop-blur-sm">
-                          Enfoca la etiqueta con nitidez
+                          Enfoca la etiqueta o toda la hoja de seriales
                         </div>
                       </div>
 
@@ -1500,21 +1597,33 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                       <span>Equipos Escaneados por el Teléfono ({pendingDrafts.length})</span>
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Cada captura tomada en el móvil se lista aquí. Puedes ingresarlos individualmente o descartarlos.
+                      Una hoja de caja con varios seriales entra como un equipo por código, del producto seleccionado.
                     </p>
                   </div>
 
                   {pendingDrafts.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPendingDrafts([])}
-                      className="text-xs h-8 text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Limpiar cola
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={isSubmitting}
+                        onClick={handleRegisterAllDrafts}
+                        className="text-xs h-8 gap-1.5"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Registrar {pendingDrafts.filter((draft) => !draft.isDuplicate).length} equipos
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPendingDrafts([])}
+                        className="text-xs h-8 text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Limpiar cola
+                      </Button>
+                    </div>
                   )}
                 </div>
 
