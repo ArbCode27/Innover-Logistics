@@ -6,11 +6,21 @@ import {
 } from "@/actions/inventory";
 import { InventoryView } from "@/components/features/inventory/inventory-view";
 
-export default async function InventoryPage() {
+interface InventoryPageProps {
+  searchParams: Promise<{ buscar?: string }>;
+}
+
+export default async function InventoryPage({ searchParams }: InventoryPageProps) {
+  const params = await searchParams;
   const profile = await getCurrentProfile();
-  const [initialStock, locations, serializedUnits] = await Promise.all([
-    getInventoryStock(),
-    getLocations(profile?.branch_id || undefined),
+  const locations = await getLocations(profile?.branch_id || undefined);
+  const currentLocationId =
+    profile?.crew_id ||
+    locations[0]?.id ||
+    "l0000000-0000-0000-0000-000000000001";
+
+  const [initialStock, serializedUnits] = await Promise.all([
+    getInventoryStock(currentLocationId),
     getSerializedUnits(),
   ]);
 
@@ -20,11 +30,8 @@ export default async function InventoryPage() {
       locations={locations}
       serializedUnits={serializedUnits}
       userRole={profile?.role || "tecnico"}
-      currentLocationId={
-        profile?.crew_id ||
-        locations[0]?.id ||
-        "l0000000-0000-0000-0000-000000000001"
-      }
+      currentLocationId={currentLocationId}
+      initialQuery={params.buscar || ""}
     />
   );
 }

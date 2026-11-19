@@ -8,7 +8,6 @@ import {
   ArrowRightLeft,
   Boxes,
   Camera,
-  CheckCircle2,
   Cpu,
   Flame,
   Layers,
@@ -51,7 +50,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { formatNumber } from "@/lib/utils";
+import { getInventoryStock } from "@/actions/inventory";
+import { buttons, explainError, hints, nav, terms } from "@/lib/glossary";
+import { usePagedList } from "@/lib/use-paged-list";
+import { PageHeader } from "@/components/shared/page-header";
+import { ListPager } from "@/components/shared/list-pager";
+import { EmptyState } from "@/components/features/inventory/design-system/empty-state";
+import { InventoryTableSkeleton } from "@/components/features/inventory/design-system/inventory-skeleton";
 import { MassiveScanModal } from "@/components/features/inventory/massive-scan-modal";
 import { LocalPurchaseModal } from "@/components/features/inventory/local-purchase-modal";
 import { ShoppingCart } from "lucide-react";
@@ -68,6 +75,7 @@ interface InventoryViewProps {
   serializedUnits: SerializedItemWithDetails[];
   userRole: UserRole;
   currentLocationId: string;
+  initialQuery?: string;
 }
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
@@ -76,16 +84,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   serializedUnits,
   userRole,
   currentLocationId,
+  initialQuery = "",
 }) => {
   const router = useRouter();
 
-  // Filter States
+  const [stock, setStock] = React.useState<StockItemWithBalance[]>(initialStock);
+  const [isLoadingStock, setIsLoadingStock] = React.useState(false);
   const [selectedLocation, setSelectedLocation] =
     React.useState<string>(currentLocationId);
-  const [searchTerm, setSearchTerm] = React.useState<string>("");
+  const [searchTerm, setSearchTerm] = React.useState<string>(initialQuery);
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
   const [natureFilter, setNatureFilter] = React.useState<string>("all");
-  const [onlyLowStock, setOnlyLowStock] = React.useState<boolean>(false);
+  const [stockAlert, setStockAlert] = React.useState<"all" | "low" | "out">("all");
+  const [sortKey, setSortKey] = React.useState<"name" | "stock">("name");
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
 
   // Modals
   const [activeSerialItem, setActiveSerialItem] =
@@ -97,16 +109,46 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [preselectedItemId, setPreselectedItemId] =
     React.useState<string | null>(null);
 
-  // Available categories
-  const categories = React.useMemo(() => {
-    const cats = new Set<string>();
-    initialStock.forEach((i) => cats.add(i.category));
-    return Array.from(cats);
+  React.useEffect(() => {
+    setStock(initialStock);
   }, [initialStock]);
 
-  // Stock Filter Logic
+  React.useEffect(() => {
+    setSearchTerm(initialQuery);
+  }, [initialQuery]);
+
+  const handleLocationChange = async (locationId: string): Promise<void> => {
+    setSelectedLocation(locationId);
+    setIsLoadingStock(true);
+    try {
+      const nextStock = await getInventoryStock(locationId);
+      setStock(nextStock);
+    } catch {
+      toast.error(explainError("cargar el almacén"), {
+        description: hints.connection,
+      });
+    } finally {
+      setIsLoadingStock(false);
+    }
+  };
+
+  const handleSort = (key: "name" | "stock"): void => {
+    if (sortKey === key) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === "stock" ? "desc" : "asc");
+  };
+
+  const categories = React.useMemo(() => {
+    const cats = new Set<string>();
+    stock.forEach((i) => cats.add(i.category));
+    return Array.from(cats);
+  }, [stock]);
+
   const filteredStock = React.useMemo(() => {
-    return initialStock.filter((item) => {
+    const list = stock.filter((item) => {
       const query = searchTerm.toLowerCase();
       const matchesSearch =
         item.name.toLowerCase().includes(query) ||
@@ -130,24 +172,44 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         matchesNature = isConsumable;
       }
 
-      const matchesLowStock = !onlyLowStock || item.is_low_stock;
+      const matchesAlert =
+        stockAlert === "all" ||
+        (stockAlert === "out" && Number(item.current_stock) <= 0) ||
+        (stockAlert === "low" && item.is_low_stock);
 
-      return matchesSearch && matchesCategory && matchesNature && matchesLowStock;
+      return matchesSearch && matchesCategory && matchesNature && matchesAlert;
     });
-  }, [initialStock, searchTerm, categoryFilter, natureFilter, onlyLowStock]);
 
-  // Counts & Statistics
-  const lowStockCount = initialStock.filter((i) => i.is_low_stock).length;
-  const serializedCount = initialStock.filter(
+    return list.sort((a, b) => {
+      const factor = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "stock") {
+        return (Number(a.current_stock) - Number(b.current_stock)) * factor;
+      }
+      return a.name.localeCompare(b.name, "es") * factor;
+    });
+  }, [stock, searchTerm, categoryFilter, natureFilter, stockAlert, sortKey, sortDir]);
+
+  const pager = usePagedList(
+    filteredStock,
+    `${searchTerm}|${categoryFilter}|${natureFilter}|${stockAlert}|${sortKey}|${sortDir}|${selectedLocation}`
+  );
+
+  const lowStockCount = stock.filter((i) => i.is_low_stock).length;
+  const outOfStockCount = stock.filter((i) => Number(i.current_stock) <= 0).length;
+  const serializedCount = stock.filter(
     (i) => i.is_serialized && i.category !== "Herramientas"
   ).length;
-  const toolsCount = initialStock.filter((i) => i.category === "Herramientas").length;
-  const consumablesCount = initialStock.filter((i) => !i.is_serialized).length;
+  const toolsCount = stock.filter((i) => i.category === "Herramientas").length;
+  const consumablesCount = stock.filter((i) => !i.is_serialized).length;
 
   const currentItemSerials = React.useMemo(() => {
     if (!activeSerialItem) return [];
-    return serializedUnits.filter((u) => u.item_id === activeSerialItem.id);
-  }, [activeSerialItem, serializedUnits]);
+    return serializedUnits.filter(
+      (unit) =>
+        unit.item_id === activeSerialItem.id &&
+        unit.current_location_id === selectedLocation
+    );
+  }, [activeSerialItem, serializedUnits, selectedLocation]);
 
   // Open scan modal for specific item
   const handleOpenScanForItem = (itemId: string): void => {
@@ -164,101 +226,117 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Header & Fast Navigation */}
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-            <Boxes className="h-7 w-7 text-primary" aria-hidden="true" />
-            Control de Inventario & Almacén
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Stock en tiempo real y registro ágil de entradas con cámara para ONUs, Routers, consumibles y herramientas.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
-          {/* Main Action: Massive Ingestion Modal with Camera */}
-          <Button
-            onClick={handleOpenGenericScan}
-            size="sm"
-            className="gap-2 shadow-md bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-4 min-h-[40px]"
-          >
-            <Camera className="h-4 w-4" aria-hidden="true" />
-            Ingreso con Cámara
-          </Button>
-
-          {/* Action: Local Purchase for Branches */}
-          {["superadmin", "admin_sucursal"].includes(userRole) && (
-            <Button
-              onClick={() => setIsLocalPurchaseOpen(true)}
-              variant="outline"
-              size="sm"
-              className="gap-2 border-primary/40 text-primary hover:bg-primary/10 font-semibold px-3 min-h-[40px]"
-            >
-              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-              Ingreso Compra Local
+      <PageHeader
+        icon={Boxes}
+        title={nav.inventory}
+        description="Mira la cantidad disponible y registra entradas, salidas o traslados."
+        action={
+          <>
+            <Button onClick={handleOpenGenericScan} className="gap-2 font-semibold">
+              <Camera className="h-4 w-4" aria-hidden="true" />
+              {buttons.registerEntry}
             </Button>
-          )}
-
-          {["superadmin", "admin_sucursal"].includes(userRole) && (
-            <Button asChild variant="outline" size="sm" className="gap-1.5 shadow-sm min-h-[40px]">
-              <Link href="/guias/enviar">
-                <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
-                Emitir Traslado
+            <Button asChild variant="outline">
+              <Link href="/inventario/registro-remoto">{buttons.usePhone}</Link>
+            </Button>
+            {["superadmin", "admin_sucursal"].includes(userRole) ? (
+              <Button
+                onClick={() => setIsLocalPurchaseOpen(true)}
+                variant="outline"
+                className="gap-2"
+              >
+                <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+                {buttons.localPurchase}
+              </Button>
+            ) : null}
+            {["superadmin", "admin_sucursal"].includes(userRole) ? (
+              <Button asChild variant="outline">
+                <Link href="/guias/enviar">
+                  <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
+                  {nav.sendTransfer}
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild variant="outline">
+              <Link href="/consumos">
+                <Flame className="h-4 w-4" aria-hidden="true" />
+                {buttons.registerExit}
               </Link>
             </Button>
-          )}
-
-          <Button asChild variant="outline" size="sm" className="gap-1.5 min-h-[40px]">
-            <Link href="/consumos">
-              <Flame className="h-4 w-4 text-orange-500" aria-hidden="true" />
-              Órdenes de Salida
-            </Link>
-          </Button>
-
-          {userRole === "superadmin" && (
-            <Button asChild variant="secondary" size="sm" className="gap-1.5 min-h-[40px]">
-              <Link href="/admin">
-                <PlusCircle className="h-4 w-4" aria-hidden="true" />
-                Nuevo Tipo
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
+            {userRole === "superadmin" ? (
+              <Button asChild variant="outline">
+                <Link href="/admin">
+                  <PlusCircle className="h-4 w-4" aria-hidden="true" />
+                  {buttons.addProduct}
+                </Link>
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card
-          onClick={() => setNatureFilter("all")}
-          className={`border shadow-sm cursor-pointer transition-all hover:border-primary/50 ${
-            natureFilter === "all" ? "ring-2 ring-primary/30 border-primary" : ""
-          }`}
+      {(outOfStockCount > 0 || lowStockCount > 0) && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
         >
+          <div className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+            <p>
+              {outOfStockCount > 0
+                ? `${outOfStockCount} ${outOfStockCount === 1 ? "producto agotado" : "productos agotados"}. `
+                : ""}
+              {lowStockCount > 0
+                ? `${lowStockCount} con poca cantidad.`
+                : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {outOfStockCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={stockAlert === "out" ? "default" : "outline"}
+                onClick={() => setStockAlert(stockAlert === "out" ? "all" : "out")}
+              >
+                {buttons.seeOut}
+              </Button>
+            ) : null}
+            {lowStockCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={stockAlert === "low" ? "default" : "outline"}
+                onClick={() => setStockAlert(stockAlert === "low" ? "all" : "low")}
+              >
+                {buttons.seeLow}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Card className="border shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
-              Total Catálogo
+            <CardDescription className="text-xs font-medium">
+              {terms.products}
             </CardDescription>
-            <CardTitle className="text-2xl font-bold flex items-center justify-between">
-              <span>{initialStock.length}</span>
+            <CardTitle className="flex items-center justify-between text-2xl font-bold">
+              <span>{stock.length}</span>
               <Boxes className="h-5 w-5 text-muted-foreground/60" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Ítems activos en inventario
-            </p>
+            <p className="text-xs text-muted-foreground">En este almacén</p>
           </CardContent>
         </Card>
 
-        <Card
-          onClick={() => setNatureFilter(natureFilter === "serialized" ? "all" : "serialized")}
-          className={`border shadow-sm cursor-pointer transition-all hover:border-primary/50 ${
-            natureFilter === "serialized" ? "ring-2 ring-primary/30 border-primary" : ""
-          }`}
-        >
+        <Card className="border shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
-              Equipos Serial + MAC
+            <CardDescription className="text-xs font-medium">
+              Con número de serie
             </CardDescription>
             <CardTitle className="text-2xl font-bold flex items-center justify-between text-primary">
               <span>{serializedCount}</span>
@@ -272,14 +350,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </CardContent>
         </Card>
 
-        <Card
-          onClick={() => setNatureFilter(natureFilter === "tools" ? "all" : "tools")}
-          className={`border shadow-sm cursor-pointer transition-all hover:border-primary/50 ${
-            natureFilter === "tools" ? "ring-2 ring-primary/30 border-primary" : ""
-          }`}
-        >
+        <Card className="border shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
+            <CardDescription className="text-xs font-medium">
               Herramientas
             </CardDescription>
             <CardTitle className="text-2xl font-bold flex items-center justify-between">
@@ -295,28 +368,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </Card>
 
         <Card
-          className={`border shadow-sm transition-all ${
-            lowStockCount > 0 ? "border-amber-500/40 bg-amber-500/5" : ""
+          className={`border shadow-sm ${
+            outOfStockCount > 0 ? "border-amber-500/40 bg-amber-500/5" : ""
           }`}
         >
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium flex items-center gap-1.5">
+            <CardDescription className="flex items-center gap-1.5 text-xs font-medium">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              Alertas de Stock
+              {terms.outOfStock}
             </CardDescription>
             <CardTitle className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {lowStockCount}
+              {outOfStockCount}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button
-              variant="link"
-              size="sm"
-              onClick={() => setOnlyLowStock(!onlyLowStock)}
-              className="p-0 h-auto text-xs font-semibold text-primary underline underline-offset-4"
-            >
-              {onlyLowStock ? "Ver todos los ítems" : "Filtrar bajo stock mínimo"}
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              {lowStockCount} con poca cantidad
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -333,7 +401,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               onClick={() => setNatureFilter("all")}
               className="h-8 text-xs rounded-full px-3"
             >
-              Todos ({initialStock.length})
+              Todos ({stock.length})
             </Button>
             <Button
               size="sm"
@@ -366,11 +434,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por descripción, modelo (Lanly), SKU..."
+                placeholder="Buscar por nombre o código"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 min-h-[44px]"
-                aria-label="Buscar material en inventario"
+                aria-label="Buscar producto en el inventario"
               />
             </div>
 
@@ -398,7 +466,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <div className="w-full sm:w-64">
                 <Select
                   value={selectedLocation}
-                  onValueChange={(val) => setSelectedLocation(val)}
+                  onValueChange={(val) => {
+                    void handleLocationChange(val);
+                  }}
                 >
                   <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="Almacén o cuadrilla" />
@@ -417,53 +487,66 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </CardContent>
       </Card>
 
-      {/* Stock Table */}
-      <Card className="border shadow-sm overflow-hidden">
+      {isLoadingStock ? (
+        <InventoryTableSkeleton rows={6} />
+      ) : (
+      <Card className="overflow-hidden border shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[130px]">SKU</TableHead>
-              <TableHead>Producto / Tipo de Equipo</TableHead>
-              <TableHead className="hidden md:table-cell">Control / Tipo</TableHead>
-              <TableHead className="text-center">Unidad</TableHead>
-              <TableHead className="text-right">Stock Mínimo</TableHead>
-              <TableHead className="text-right font-bold">
-                Stock Disponible
+              <TableHead className="hidden w-[130px] sm:table-cell">{terms.code}</TableHead>
+              <TableHead>
+                <button type="button" className="font-medium" onClick={() => handleSort("name")}>
+                  {terms.product}
+                </button>
               </TableHead>
-              <TableHead className="text-center w-[160px]">Acciones</TableHead>
+              <TableHead className="hidden md:table-cell">Tipo</TableHead>
+              <TableHead className="hidden text-center sm:table-cell">{terms.unit}</TableHead>
+              <TableHead className="hidden text-right lg:table-cell">{terms.minimum}</TableHead>
+              <TableHead className="text-right font-bold">
+                <button type="button" className="font-bold" onClick={() => handleSort("stock")}>
+                  {terms.available}
+                </button>
+              </TableHead>
+              <TableHead className="w-[148px] text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredStock.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  <div className="flex flex-col items-center justify-center gap-1">
-                    <SlidersHorizontal className="h-6 w-6 text-muted-foreground/50" />
-                    <p className="font-medium">
-                      No se encontraron materiales con los filtros aplicados.
-                    </p>
-                  </div>
+                <TableCell colSpan={7} className="p-4">
+                  <EmptyState
+                    icon={SlidersHorizontal}
+                    title="No hay productos con estos filtros"
+                    description="Quita la búsqueda o elige otro almacén para ver la cantidad disponible."
+                    actionLabel={buttons.clearFilters}
+                    onAction={() => {
+                      setSearchTerm("");
+                      setCategoryFilter("all");
+                      setNatureFilter("all");
+                      setStockAlert("all");
+                    }}
+                    secondaryActionLabel={buttons.registerEntry}
+                    onSecondaryAction={handleOpenGenericScan}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
-              filteredStock.map((item) => {
-                const isLanly = item.name.toLowerCase().includes("lanly");
+              pager.rows.map((item) => {
                 const isTool = item.category === "Herramientas";
+                const isOut = Number(item.current_stock) <= 0;
 
                 return (
                   <TableRow
                     key={item.id}
-                    className={item.is_low_stock ? "bg-amber-500/5" : undefined}
+                    className={isOut ? "bg-amber-500/10" : item.is_low_stock ? "bg-amber-500/5" : undefined}
                   >
-                    <TableCell className="font-mono text-xs font-semibold">
+                    <TableCell className="hidden font-mono text-xs font-semibold sm:table-cell">
                       {item.sku}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg border bg-muted/40 overflow-hidden flex items-center justify-center flex-shrink-0">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
                           {item.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -479,97 +562,65 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             <Boxes className="h-5 w-5 text-muted-foreground/40" />
                           )}
                         </div>
-                        <div>
-                          <div className="font-medium text-foreground flex items-center gap-1.5">
-                            <span>{item.name}</span>
-                            {isLanly && (
-                              <Badge className="bg-primary/15 text-primary text-[10px] px-1.5 py-0">
-                                Lanly
-                              </Badge>
-                            )}
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground">{item.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {terms.code}: {item.sku}
+                            {isOut ? ` · ${terms.outOfStock}` : item.is_low_stock ? ` · ${terms.lowStock}` : ""}
                           </div>
-                          {item.description && (
-                            <div className="text-xs text-muted-foreground line-clamp-1">
-                              {item.description}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {item.is_serialized ? (
-                        item.category === "Herramientas" ? (
-                          <Badge variant="outline" className="text-[11px] gap-1">
-                            <Wrench className="h-3 w-3 text-primary" /> Serial
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[11px] gap-1 font-mono">
-                            <Cpu className="h-3 w-3 text-primary" /> SN + MAC
-                          </Badge>
-                        )
+                        <Badge variant="secondary">Con serie</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[11px] gap-1 text-muted-foreground">
-                          <Layers className="h-3 w-3" /> Consumible
-                        </Badge>
+                        <Badge variant="outline">Por cantidad</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-center text-xs">
+                    <TableCell className="hidden text-center text-xs sm:table-cell">
                       <Badge variant="outline">{item.unit}</Badge>
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground font-mono">
+                    <TableCell className="hidden text-right font-mono text-xs text-muted-foreground lg:table-cell">
                       {formatNumber(Number(item.min_stock), 0)}
                     </TableCell>
-                    <TableCell className="text-right font-mono font-bold text-base">
+                    <TableCell className="text-right font-mono text-base font-bold">
                       <div className="flex items-center justify-end gap-1.5">
-                        {item.is_low_stock && (
-                          <span title="Stock por debajo del mínimo">
-                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                        {item.is_low_stock ? (
+                          <span title={isOut ? terms.outOfStock : terms.lowStock}>
+                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
                           </span>
-                        )}
-                        <span
-                          className={
-                            item.is_low_stock
-                              ? "text-amber-600 dark:text-amber-400 font-extrabold"
-                              : "text-foreground"
-                          }
-                        >
+                        ) : null}
+                        <span className={item.is_low_stock ? "font-extrabold text-amber-600 dark:text-amber-400" : "text-foreground"}>
                           {formatNumber(Number(item.current_stock), 0)}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex flex-col items-stretch justify-center gap-1 sm:flex-row sm:items-center">
                         <Button
                           variant="default"
                           size="sm"
                           onClick={() => handleOpenScanForItem(item.id)}
-                          className="h-8 px-2.5 text-xs gap-1 shadow-sm"
-                          title="Registrar entrada de este producto con cámara"
+                          className="h-9 px-2 text-xs"
                         >
                           <Plus className="h-3.5 w-3.5" />
-                          <span>Ingresar</span>
+                          <span className="sr-only sm:not-sr-only sm:ml-1">Entrada</span>
                         </Button>
-
+                        <Button asChild variant="outline" size="sm" className="h-9 px-2 text-xs">
+                          <Link href={`/solicitudes?producto=${item.id}`}>Pedir</Link>
+                        </Button>
                         {item.is_serialized ? (
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => setActiveSerialItem(item)}
-                            className="text-xs h-8 px-2"
-                            aria-label={`Ver seriales de ${item.name}`}
+                            className="h-9 px-2 text-xs"
+                            aria-label={`Ver números de serie de ${item.name}`}
                           >
                             Series
                           </Button>
-                        ) : (
-                          <Button
-                            asChild
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs h-8 px-2 text-muted-foreground"
-                          >
-                            <Link href="/solicitudes">Pedir</Link>
-                          </Button>
-                        )}
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -578,7 +629,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             )}
           </TableBody>
         </Table>
+        <ListPager
+          page={pager.page}
+          pageCount={pager.pageCount}
+          total={pager.total}
+          onPage={pager.setPage}
+        />
       </Card>
+      )}
 
       {/* Serial Units Modal Dialog */}
       <Dialog
@@ -589,26 +647,24 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Cpu className="h-5 w-5 text-primary" />
-              Unidades Serializadas ({activeSerialItem?.name})
+              Números de serie ({activeSerialItem?.name})
             </DialogTitle>
             <DialogDescription>
-              Control trazable individual por Serial Number y dirección MAC.
+              Cada equipo de este almacén, con su número de serie y dirección MAC.
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-2 space-y-4">
             <div className="flex items-center justify-between text-xs text-muted-foreground border-b pb-2">
-              <span>SKU: {activeSerialItem?.sku}</span>
+              <span>{terms.code}: {activeSerialItem?.sku}</span>
               <span>
-                Total registrados en esta ubicación:{" "}
-                {currentItemSerials.length}
+                En este almacén: {currentItemSerials.length}
               </span>
             </div>
 
             {currentItemSerials.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                No hay unidades físicas disponibles en este depósito para este
-                ítem.
+                No hay equipos con número de serie en este almacén.
               </div>
             ) : (
               <div className="divide-y max-h-60 overflow-y-auto">
@@ -622,10 +678,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         {s.serial_number}
                       </div>
                       <div className="text-xs font-mono text-muted-foreground">
-                        MAC: {s.mac_address || "Sin MAC"}
+                        MAC: {s.mac_address || "Sin dirección MAC"}
                       </div>
                     </div>
-                    <Badge variant="success">Disponible en stock</Badge>
+                    <Badge variant="success">Disponible</Badge>
                   </div>
                 ))}
               </div>

@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { motion } from "framer-motion";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -34,6 +36,8 @@ import {
 } from "@/lib/validators/dispatch-order";
 import { createDispatchOrderAction } from "@/actions/dispatch-orders";
 import { exportDeliveryNotesToExcel } from "@/lib/export-excel";
+import { buttons } from "@/lib/glossary";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,12 +75,14 @@ import {
 } from "@/components/ui/dialog";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { DocumentVoucherModal } from "@/components/features/history/document-voucher-modal";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Printer } from "lucide-react";
 import type {
   DocumentWithDetails,
   Item,
   Location,
   SerializedItemWithDetails,
+  Technician,
   UserRole,
 } from "@/types/inventory";
 
@@ -84,6 +90,7 @@ interface DispatchOrdersViewProps {
   locations: Location[];
   items: ItemsCatalogProps;
   historyDocuments: DocumentWithDetails[];
+  technicians: Technician[];
   userRole: UserRole;
   defaultLocationId?: string;
   serializedUnits: SerializedItemWithDetails[];
@@ -133,6 +140,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
   locations,
   items,
   historyDocuments,
+  technicians,
   userRole,
   defaultLocationId,
   serializedUnits,
@@ -144,6 +152,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
   const [filterWorkType, setFilterWorkType] = React.useState<string>("all");
   const [selectedDocDetails, setSelectedDocDetails] = React.useState<DocumentWithDetails | null>(null);
   const [printVoucherId, setPrintVoucherId] = React.useState<string | null>(null);
+  const [pendingExit, setPendingExit] = React.useState<DispatchOrderInput | null>(null);
 
   // Fecha de hoy por defecto (YYYY-MM-DD)
   const todayStr = React.useMemo(() => {
@@ -162,6 +171,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
     formState: { errors },
   } = useForm<DispatchOrderInput>({
     resolver: zodResolver(dispatchOrderFormSchema),
+    mode: "onChange",
     defaultValues: {
       location_id: initialLocationId,
       date: todayStr,
@@ -171,6 +181,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
       client_code: "",
       project_name: "",
       technician_name: "",
+      assigned_technician_id: "",
       receiver_mode: "warehouse_decides",
       notes: "",
       lines: [
@@ -189,14 +200,35 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
   const selectedWorkType = watch("work_type");
   const selectedLocation = watch("location_id");
+  const selectedTechnicianId = watch("assigned_technician_id");
+  const canIssue = userRole === "superadmin" || userRole === "admin_sucursal";
+
+  const techniciansForBranch = React.useMemo(() => {
+    const location = locations.find((item) => item.id === selectedLocation);
+    return technicians.filter(
+      (technician) =>
+        technician.is_active &&
+        (!location || technician.branch_id === location.branch_id)
+    );
+  }, [technicians, locations, selectedLocation]);
+
+  React.useEffect(() => {
+    if (!selectedTechnicianId) return;
+    const stillAvailable = techniciansForBranch.some(
+      (technician) => technician.id === selectedTechnicianId
+    );
+    if (!stillAvailable) {
+      setValue("assigned_technician_id", "");
+      setValue("technician_name", "");
+    }
+  }, [selectedTechnicianId, techniciansForBranch, setValue]);
 
   // Filtro de seriales disponibles para la ubicación seleccionada
   const availableSerialsForLocation = React.useMemo(() => {
     return serializedUnits.filter(
-      (u) =>
-        u.current_location_id === selectedLocation ||
-        u.status === "in_stock" ||
-        u.status === "assigned_crew"
+      (unit) =>
+        unit.current_location_id === selectedLocation &&
+        (unit.status === "in_stock" || unit.status === "assigned_crew")
     );
   }, [serializedUnits, selectedLocation]);
 
@@ -224,20 +256,27 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
   };
 
   // Enviar orden de salida
-  const onSubmit = async (data: DispatchOrderInput): Promise<void> => {
+  const onSubmit = (data: DispatchOrderInput): void => {
+    setPendingExit(data);
+  };
+
+  const handleConfirmExit = async (): Promise<void> => {
+    if (!pendingExit) return;
+    const data = pendingExit;
+    setPendingExit(null);
     setIsSubmitting(true);
     try {
       const res = await createDispatchOrderAction(data);
       if (!res.success) {
-        toast.error("Error al registrar la salida", {
+        toast.error("No se pudo registrar la salida. Revisa la cantidad y el almacén e inténtalo de nuevo.", {
           description: res.error,
         });
         setIsSubmitting(false);
         return;
       }
 
-      toast.success("¡Orden de salida emitida exitosamente!", {
-        description: `Nota de entrega generada: ${res.data?.delivery_note_number} (${res.data?.document_number})`,
+      toast.success("Salida enviada a aprobación", {
+        description: `Comprobante ${res.data?.document_number}. El material sale cuando el administrador general la autorice.`,
       });
 
       // Resetear campos del formulario manteniendo almacén y fecha
@@ -249,7 +288,8 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
         client_name: "",
         client_code: "",
         project_name: "",
-        technician_name: data.technician_name || "",
+        technician_name: "",
+        assigned_technician_id: "",
         receiver_mode: "warehouse_decides",
         notes: "",
         lines: [
@@ -263,7 +303,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
       router.refresh();
       setActiveTab("history");
     } catch {
-      toast.error("Error de comunicación con el servidor");
+      toast.error("No hay conexión con el servidor. Espera un momento e inténtalo de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -307,11 +347,11 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
           <div className="flex items-center gap-2">
             <ClipboardList className="h-7 w-7 text-primary" aria-hidden="true" />
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-              Órdenes de Salida &amp; Notas de Entrega
+              Salidas
             </h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Registro de egreso de almacén para servicios a abonados o proyectos de campo con descuento de stock.
+            El encargado de almacén emite la salida. El material se descuenta cuando el administrador general la aprueba.
           </p>
         </div>
 
@@ -324,7 +364,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
             className="gap-2 min-h-[40px]"
           >
             <FileText className="h-4 w-4" />
-            Nueva Solicitud / Salida
+            {buttons.registerExit}
           </Button>
 
           <Button
@@ -352,18 +392,18 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
       </div>
 
       {/* PESTAÑA 1: FORMULARIO DE SALIDA */}
-      {activeTab === "form" && (
+      {activeTab === "form" && canIssue && (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <Card className="border shadow-sm">
             <CardHeader className="bg-muted/30 border-b pb-4">
               <CardTitle className="text-xl font-bold flex items-center justify-between">
                 <span>Solicitar salida del almacén</span>
                 <Badge variant="outline" className="font-normal text-xs text-muted-foreground">
-                  Descuento inmediato de existencias
+                  Pendiente hasta la aprobación
                 </Badge>
               </CardTitle>
               <CardDescription className="text-xs text-muted-foreground">
-                La solicitud queda registrada con su respectiva Nota de Entrega y rebaja el inventario de la sede de forma auditada.
+                La nota de entrega se genera ahora. El inventario baja cuando el administrador general aprueba la orden.
               </CardDescription>
             </CardHeader>
 
@@ -410,7 +450,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                     <SelectContent>
                       {locations.map((loc) => (
                         <SelectItem key={loc.id} value={loc.id}>
-                          {loc.name} ({loc.type === "branch" ? "Sede Central" : "Móvil/Cuadrilla"})
+                          {loc.name} ({loc.type === "branch" ? "Almacén" : "Cuadrilla"})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -506,20 +546,48 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
               {/* FILA 3: RESPONSABLE / TÉCNICO & DESTINATARIO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="technician_name" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
-                    Técnico que Instala / Responsable
+                <motion.div
+                  className="space-y-2"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22 }}
+                >
+                  <Label htmlFor="assigned_technician_id" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
+                    Técnico que recibe el material <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="technician_name"
-                    placeholder="Nombre del técnico o cuadrilla a cargo"
-                    {...register("technician_name")}
-                    className="min-h-[44px]"
-                  />
-                  {errors.technician_name && (
-                    <p className="text-xs text-destructive">{errors.technician_name.message}</p>
+                  <Select
+                    value={selectedTechnicianId || undefined}
+                    onValueChange={(value) => {
+                      const technician = techniciansForBranch.find((item) => item.id === value);
+                      setValue("assigned_technician_id", value, { shouldValidate: true });
+                      setValue("technician_name", technician?.full_name || "", {
+                        shouldValidate: true,
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="assigned_technician_id" className="min-h-[44px]">
+                      <SelectValue placeholder="Seleccione un técnico activo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {techniciansForBranch.map((technician) => (
+                        <SelectItem key={technician.id} value={technician.id}>
+                          {technician.full_name} · {technician.document_id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {techniciansForBranch.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No hay técnicos activos en esta sede.{" "}
+                      <Link href="/tecnicos" className="font-semibold text-primary underline-offset-2 hover:underline">
+                        Registrar técnico
+                      </Link>
+                    </p>
+                  ) : null}
+                  {errors.assigned_technician_id && (
+                    <p className="text-xs text-destructive">{errors.assigned_technician_id.message}</p>
                   )}
-                </div>
+                </motion.div>
 
                 <div className="space-y-2">
                   <Label htmlFor="receiver_mode" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
@@ -579,7 +647,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        toast.info("Lector de código de barras activo para lectura de SKU o Serial");
+                        toast.info("El lector está listo. Apunta al código o al número de serie.");
                       }}
                       className="gap-1.5 text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                     >
@@ -743,18 +811,24 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Generando Nota de Entrega...
+                    Registrando salida...
                   </>
                 ) : (
                   <>
                     <Send className="h-4 w-4" />
-                    Emitir Orden de Salida
+                    {buttons.registerExit}
                   </>
                 )}
               </Button>
             </CardFooter>
           </Card>
         </form>
+      )}
+
+      {activeTab === "form" && !canIssue && (
+        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Solo el encargado de almacén puede emitir una salida. Puedes consultar el historial de notas.
+        </div>
       )}
 
       {/* PESTAÑA 2: HISTORIAL DE NOTAS DE ENTREGA */}
@@ -876,9 +950,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                         </TableCell>
 
                         <TableCell>
-                          <Badge variant="success" className="text-[10px]">
-                            Despachado
-                          </Badge>
+                          <StatusBadge status={doc.status} />
                         </TableCell>
 
                         <TableCell className="text-right">
@@ -913,6 +985,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                     {selectedDocDetails.document_number}
                   </Badge>
                 </DialogTitle>
+                {selectedDocDetails.status === "APPROVED" ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -922,6 +995,13 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   <Printer className="h-3.5 w-3.5" />
                   Imprimir Comprobante Oficial
                 </Button>
+                ) : (
+                  <Badge variant="outline" className="mr-6">
+                    {selectedDocDetails.status === "PENDING_APPROVAL"
+                      ? "Aún no despachada"
+                      : "Sin despacho"}
+                  </Badge>
+                )}
               </div>
               <DialogDescription className="text-xs">
                 Emisión registrada el {formatDate(selectedDocDetails.created_at)} por{" "}
@@ -972,7 +1052,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
-                        <TableHead className="text-xs">SKU</TableHead>
+                        <TableHead className="text-xs">Código</TableHead>
                         <TableHead className="text-xs">Material / Equipo</TableHead>
                         <TableHead className="text-xs text-right">Cantidad</TableHead>
                         <TableHead className="text-xs text-right">Unidad</TableHead>
@@ -1009,6 +1089,18 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
       )}
 
       {/* Official Voucher Print Dialog */}
+      <ConfirmDialog
+        open={Boolean(pendingExit)}
+        title="¿Registrar esta salida?"
+        description="La orden queda pendiente de aprobación. La cantidad sale del almacén cuando el administrador general la autoriza."
+        confirmLabel={buttons.registerExit}
+        pending={isSubmitting}
+        onCancel={() => setPendingExit(null)}
+        onConfirm={() => {
+          void handleConfirmExit();
+        }}
+      />
+
       <DocumentVoucherModal
         documentId={printVoucherId}
         docNumber={null}

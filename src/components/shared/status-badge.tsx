@@ -29,11 +29,18 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span>Aprobado</span>
         </Badge>
       );
+    case "PENDING_APPROVAL":
+      return (
+        <Badge variant="info" className="gap-1 font-medium">
+          <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Pendiente de aprobación</span>
+        </Badge>
+      );
     case "PENDING":
       return (
         <Badge variant="warning" className="gap-1 font-medium">
           <Truck className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>En Tránsito / Pendiente</span>
+          <span>En camino</span>
         </Badge>
       );
     case "DRAFT":
@@ -54,7 +61,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       return (
         <Badge variant="destructive" className="gap-1 font-medium opacity-90">
           <Ban className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Anulado (Contra-asiento)</span>
+          <span>Anulado</span>
         </Badge>
       );
     case "REQUESTED":
@@ -76,7 +83,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       return (
         <Badge variant="secondary" className="gap-1 font-medium">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Consumido en Campo</span>
+          <span>Usado en campo</span>
         </Badge>
       );
     case "in_stock":
@@ -84,6 +91,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         <Badge variant="success" className="gap-1 font-medium">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Disponible</span>
+        </Badge>
+      );
+    case "reserved":
+      return (
+        <Badge variant="warning" className="gap-1 font-medium">
+          <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Reservado</span>
         </Badge>
       );
     case "in_transit":

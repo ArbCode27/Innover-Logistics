@@ -46,7 +46,7 @@ export default function LoginPage() {
       const response = await loginAction(data);
       if (!response.success) {
         setAuthError(response.error ?? "No se pudo iniciar sesión.");
-        toast.error("Error de autenticación", {
+        toast.error("No se pudo entrar. Revisa el correo y la contraseña e inténtalo de nuevo.", {
           description: response.error,
         });
         setIsSubmitting(false);
@@ -60,8 +60,8 @@ export default function LoginPage() {
       router.push("/inventario");
       router.refresh();
     } catch {
-      setAuthError("Ocurrió un error inesperado al procesar la solicitud.");
-      toast.error("Error al conectar con el servidor");
+      setAuthError("No se pudo entrar. Revisa tu conexión e inténtalo de nuevo.");
+      toast.error("No hay conexión con el servidor. Espera un momento e inténtalo de nuevo.");
       setIsSubmitting(false);
     }
   };
@@ -87,8 +87,7 @@ export default function LoginPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl font-bold">Iniciar Sesión</CardTitle>
             <CardDescription className="text-slate-400">
-              Ingrese con sus credenciales autorizadas del sistema de
-              inventario.
+              Ingresa con el correo y la contraseña que te dio tu sede.
             </CardDescription>
           </CardHeader>
 
@@ -162,12 +161,12 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Autenticando...
+                    Entrando...
                   </>
                 ) : (
                   <>
                     <LogIn className="h-5 w-5" />
-                    Ingresar a la Plataforma
+                    Entrar
                   </>
                 )}
               </Button>

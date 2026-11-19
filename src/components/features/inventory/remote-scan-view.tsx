@@ -197,7 +197,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         setNewItemCategory(data.category || "Equipos Activos");
         setIsSkuConfirmed(false); // Requiere confirmación obligatoria
         toast.warning(
-          "Producto no encontrado en catálogo. Modo de alta con SKU sugerido activado."
+          "Este producto no está en la lista. Completa el nombre y confirma el código antes de guardar."
         );
       } else {
         setIsNewItemMode(false);
@@ -347,11 +347,11 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
     if (isNewItemMode) {
       if (!isSkuConfirmed) {
-        toast.error("Debe confirmar o verificar el código SKU propuesto antes de guardar");
+        toast.error("Confirma el código del producto antes de guardar. Si está vacío, escríbelo.");
         return;
       }
       if (!newItemName.trim() || !newItemSku.trim()) {
-        toast.error("Complete el nombre y el código SKU del producto");
+        toast.error("Escribe el nombre y el código. Los dos son obligatorios para un producto nuevo.");
         return;
       }
     } else {
@@ -362,7 +362,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     }
 
     if (!serialNumber.trim()) {
-      toast.error("El número de serial es obligatorio");
+      toast.error("El número de serie es obligatorio. Escríbelo o tómale una foto más clara.");
       return;
     }
 
@@ -468,10 +468,10 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Camera className="h-6 w-6 text-primary" />
-            <span>Recepción y Registro Remoto con Teléfono</span>
+            <span>Recepción con teléfono</span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            Vinculación móvil en tiempo real para captura simultánea de Serial, MAC y catálogo.
+            Toma la foto con el teléfono. El número de serie y la dirección MAC se guardan juntos.
           </p>
         </div>
 
@@ -704,7 +704,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                         {currentSelectedItem?.name || newItemName || "Sin producto seleccionado"}
                       </p>
                       <p className="text-muted-foreground text-[11px]">
-                        SKU: {currentSelectedItem?.sku || newItemSku || "N/A"}
+                        Código: {currentSelectedItem?.sku || newItemSku || "Sin código"}
                       </p>
                     </div>
                   </div>
@@ -857,11 +857,11 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     <div className="space-y-1.5 pt-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-[11px]">
-                          Código SKU (Propuesto automáticamente)
+                          Código (propuesto)
                         </Label>
                         {isSkuConfirmed ? (
                           <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px]">
-                            SKU Confirmado
+                            Código confirmado
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
@@ -886,11 +886,11 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                           variant={isSkuConfirmed ? "secondary" : "default"}
                           onClick={() => {
                             if (!newItemSku.trim()) {
-                              toast.error("El SKU no puede estar vacío");
+                              toast.error("El código no puede quedar vacío. Escríbelo y confírmalo.");
                               return;
                             }
                             setIsSkuConfirmed(true);
-                            toast.success("SKU confirmado correctamente");
+                            toast.success("Código confirmado");
                           }}
                           className="h-9 text-xs px-3"
                         >
@@ -1039,12 +1039,12 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Guardando en Ledger...</span>
+                    <span>Guardando entrada...</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4" />
-                    <span>Guardar Ingreso de Compra (+1)</span>
+                    <span>Guardar entrada</span>
                   </>
                 )}
               </Button>

@@ -3,15 +3,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
   Ban,
-  Boxes,
-  CheckCircle2,
   FileText,
   History,
-  Info,
   Loader2,
-  Printer,
   Search,
   ShieldCheck,
 } from "lucide-react";
@@ -56,6 +51,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/shared/page-header";
+import { ListPager } from "@/components/shared/list-pager";
+import { EmptyState } from "@/components/features/inventory/design-system/empty-state";
+import { buttons, explainError, hints, nav, terms } from "@/lib/glossary";
+import { usePagedList } from "@/lib/use-paged-list";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { DocumentVoucherModal } from "@/components/features/history/document-voucher-modal";
 import type { MovementType, UserRole } from "@/types/inventory";
@@ -104,7 +104,7 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
   const handleConfirmVoid = async (): Promise<void> => {
     if (!selectedVoidDoc) return;
     if (!cancellationReason.trim()) {
-      toast.error("Debe ingresar el motivo de la anulación");
+      toast.error("Escribe por qué se anula. Sin ese motivo no se puede corregir el movimiento.");
       return;
     }
 
@@ -115,22 +115,20 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
         cancellationReason
       );
       if (!res.success) {
-        toast.error("Error al anular documento", {
-          description: res.error,
-        });
+        toast.error(explainError("anular el documento", res.error));
         setIsVoiding(false);
         return;
       }
 
       toast.success("Documento anulado", {
         description:
-          "Se ha generado un contra-asiento inmutable que restituye el stock en el ledger.",
+          "La cantidad volvió al estado anterior. El documento sigue en el historial para que se pueda revisar.",
       });
 
       setSelectedVoidDoc(null);
       router.refresh();
     } catch {
-      toast.error("Error inesperado en el servidor");
+      toast.error(hints.connection);
     } finally {
       setIsVoiding(false);
     }
@@ -139,61 +137,40 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
   const getMovementBadge = (type: MovementType) => {
     switch (type) {
       case "purchase":
-        return <Badge variant="success">Compra (+)</Badge>;
+        return <Badge variant="success">Entrada por compra</Badge>;
       case "transfer_in":
-        return <Badge variant="info">Entrada Traslado (+)</Badge>;
+        return <Badge variant="info">Entrada por traslado</Badge>;
       case "transfer_out":
-        return <Badge variant="warning">Salida Traslado (-)</Badge>;
+        return <Badge variant="warning">Salida por traslado</Badge>;
       case "assignment_in":
-        return <Badge variant="info">Entrada Cuadrilla (+)</Badge>;
+        return <Badge variant="info">Entrada a cuadrilla</Badge>;
       case "assignment_out":
-        return <Badge variant="secondary">Salida Cuadrilla (-)</Badge>;
+        return <Badge variant="secondary">Salida a cuadrilla</Badge>;
       case "consumption":
-        return <Badge variant="destructive">Consumo Campo (-)</Badge>;
+        return <Badge variant="destructive">Salida</Badge>;
       case "void":
-        return <Badge variant="outline">Contra-asiento Anulación</Badge>;
+        return <Badge variant="outline">Anulación</Badge>;
       default:
         return <Badge variant="outline">{type}</Badge>;
     }
   };
 
+  const pager = usePagedList(
+    filteredMovements,
+    `${searchTerm}|${movementFilter}`
+  );
+
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-            <History className="h-7 w-7 text-primary" aria-hidden="true" />
-            Ledger Inmutable & Trazabilidad
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Auditoría de todos los asientos contables de inventario. Nunca se
-            borran registros.
-          </p>
-        </div>
+      <PageHeader
+        icon={History}
+        title={nav.history}
+        description="Cada entrada, salida y traslado queda escrito aquí. Un error se corrige anulando el documento, no borrándolo."
+      />
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-            className="gap-1.5 min-h-[44px]"
-          >
-            <Printer className="h-4 w-4" />
-            Imprimir Comprobante
-          </Button>
-        </div>
-      </div>
-
-      {/* Domain Rule Banner */}
-      <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-xs text-blue-900 dark:text-blue-300">
-        <ShieldCheck className="h-5 w-5 text-blue-500 shrink-0" />
-        <span>
-          <strong>Regla de Dominio N° 1 y 5:</strong> El balance de stock es el
-          resultado directo de la sumatoria de este libro contable. Los errores
-          se corrigen exclusivamente mediante contra-asiento inverso con motivo
-          justificado.
-        </span>
+      <div className="flex items-start gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-900 dark:text-blue-200">
+        <ShieldCheck className="h-5 w-5 shrink-0 text-blue-500" />
+        <span>{hints.stockRule} Si hubo un error, anula el documento y escribe el motivo.</span>
       </div>
 
       {/* Search and Filters Toolbar */}
@@ -202,7 +179,8 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por comprobante, material o ubicación..."
+              placeholder="Buscar por número, producto o almacén"
+              aria-label="Buscar en el historial"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 min-h-[44px]"
@@ -218,12 +196,14 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
                 <SelectValue placeholder="Tipo de movimiento" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los tipos de movimiento</SelectItem>
-                <SelectItem value="purchase">Compras Locales (+)</SelectItem>
-                <SelectItem value="transfer_out">Salidas de Traslado (-)</SelectItem>
-                <SelectItem value="transfer_in">Entradas de Traslado (+)</SelectItem>
-                <SelectItem value="consumption">Salida / Consumo / Nota Entrega (-)</SelectItem>
-                <SelectItem value="void">Contra-asientos de Anulación</SelectItem>
+                <SelectItem value="all">Todos los movimientos</SelectItem>
+                <SelectItem value="purchase">Entradas por compra</SelectItem>
+                <SelectItem value="transfer_out">Salidas por traslado</SelectItem>
+                <SelectItem value="transfer_in">Entradas por traslado</SelectItem>
+                <SelectItem value="assignment_out">Salidas a cuadrilla</SelectItem>
+                <SelectItem value="assignment_in">Entradas a cuadrilla</SelectItem>
+                <SelectItem value="consumption">Salidas</SelectItem>
+                <SelectItem value="void">Anulaciones</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -236,8 +216,8 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
           <TableHeader>
             <TableRow>
               <TableHead className="w-[140px]">Documento</TableHead>
-              <TableHead>Tipo Asiento</TableHead>
-              <TableHead>Material / Ítem</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>{terms.product}</TableHead>
               <TableHead>Ubicación</TableHead>
               <TableHead className="text-right">Movimiento</TableHead>
               <TableHead className="hidden md:table-cell">Responsable</TableHead>
@@ -250,15 +230,20 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
           <TableBody>
             {filteredMovements.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  No se encontraron movimientos registrados en el ledger.
+                <TableCell colSpan={8} className="p-4">
+                  <EmptyState
+                    title="No hay movimientos con este filtro"
+                    description="Quita la búsqueda o registra una entrada, una salida o un traslado."
+                    actionLabel={buttons.clearFilters}
+                    onAction={() => {
+                      setSearchTerm("");
+                      setMovementFilter("all");
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
-              filteredMovements.map((mov) => {
+              pager.rows.map((mov) => {
                 const isPositive = Number(mov.quantity) > 0;
                 return (
                   <TableRow key={mov.id}>
@@ -284,7 +269,7 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
                         {mov.item_name}
                       </div>
                       <div className="text-xs text-muted-foreground font-mono">
-                        SKU: {mov.item_sku}
+                        {terms.code}: {mov.item_sku}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
@@ -324,7 +309,7 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
                             title="Ver Comprobante Oficial"
                           >
                             <FileText className="h-3.5 w-3.5 mr-1" />
-                            PDF
+                            {buttons.viewVoucher}
                           </Button>
                           {mov.movement_type !== "void" && (
                             <Button
@@ -337,7 +322,7 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
                                 )
                               }
                               className="text-xs text-muted-foreground hover:text-destructive h-8 px-2 min-h-[36px]"
-                              title="Anular documento con contra-asiento"
+                              title={buttons.voidDocument}
                             >
                               <Ban className="h-3.5 w-3.5 mr-1" />
                               Anular
@@ -352,6 +337,7 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
             )}
           </TableBody>
         </Table>
+        <ListPager page={pager.page} pageCount={pager.pageCount} total={pager.total} onPage={pager.setPage} />
       </Card>
 
       {/* Void Document Modal Dialog */}
@@ -363,12 +349,10 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Ban className="h-5 w-5" />
-              Anular Documento {selectedVoidDoc?.docNumber}
+              Anular documento {selectedVoidDoc?.docNumber}
             </DialogTitle>
             <DialogDescription>
-              El documento NO será eliminado. Se registrará un contra-asiento
-              inverso en el ledger para restaurar el balance previo con fines de
-              auditoría.
+              El documento se queda en el historial. Se crea un movimiento contrario para devolver la cantidad. Escribe el motivo para que otra persona entienda la corrección.
             </DialogDescription>
           </DialogHeader>
 
@@ -402,12 +386,12 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
               {isVoiding ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generando Contra-asiento...
+                  Anulando...
                 </>
               ) : (
                 <>
                   <Ban className="h-4 w-4" />
-                  Confirmar Anulación
+                  {buttons.voidDocument}
                 </>
               )}
             </Button>

@@ -36,7 +36,14 @@ export const exportDeliveryNotesToExcel = (
         doc.receiver_mode === "warehouse_decides" ? "Decidido en almacén al despachar" : "Asignación directa",
       "Total Productos": itemsCount,
       "Total Unidades": totalUnits,
-      "Estado": doc.status === "APPROVED" ? "DESPACHADO" : doc.status,
+      "Estado":
+        doc.status === "APPROVED"
+          ? "DESPACHADO"
+          : doc.status === "PENDING_APPROVAL"
+            ? "PENDIENTE DE APROBACIÓN"
+            : doc.status === "REJECTED"
+              ? "RECHAZADO"
+              : doc.status,
       "Emitido Por": doc.creator?.full_name || "Sistema",
       "Notas": doc.notes || "",
     };

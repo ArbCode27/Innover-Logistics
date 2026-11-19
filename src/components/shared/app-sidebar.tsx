@@ -13,15 +13,17 @@ import {
   FileQuestion,
   History,
   Settings,
-  Menu,
-  X,
+  ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { hints, nav } from "@/lib/glossary";
 import type { UserRole } from "@/types/inventory";
 
 interface AppSidebarProps {
   role: UserRole;
+  mobileOpen: boolean;
+  onMobileOpenChange: (open: boolean) => void;
 }
 
 interface NavItem {
@@ -29,168 +31,149 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: UserRole[];
-  badge?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   {
-    title: "Inventario",
+    title: nav.inventory,
     href: "/inventario",
     icon: Boxes,
     roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
   },
   {
-    title: "Registro con Teléfono",
+    title: nav.phoneEntry,
     href: "/inventario/registro-remoto",
     icon: Camera,
     roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
-    badge: "QR",
   },
   {
-    title: "Recepción de Guías",
+    title: nav.receiveTransfer,
     href: "/guias/recepcion",
     icon: PackageCheck,
     roles: ["superadmin", "admin_sucursal"],
   },
   {
-    title: "Emitir Traslado",
+    title: nav.sendTransfer,
     href: "/guias/enviar",
     icon: Truck,
     roles: ["superadmin", "admin_sucursal"],
   },
   {
-    title: "Cuadrillas",
+    title: nav.crews,
     href: "/cuadrillas",
     icon: Users,
     roles: ["superadmin", "admin_sucursal"],
   },
   {
-    title: "Órdenes de Salida",
+    title: nav.technicians,
+    href: "/tecnicos",
+    icon: UserRound,
+    roles: ["superadmin", "admin_sucursal"],
+  },
+  {
+    title: nav.approvals,
+    href: "/aprobaciones",
+    icon: ShieldCheck,
+    roles: ["superadmin"],
+  },
+  {
+    title: nav.exits,
     href: "/consumos",
     icon: Flame,
     roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
-    badge: "Salidas",
   },
   {
-    title: "Solicitudes",
+    title: nav.requests,
     href: "/solicitudes",
     icon: FileQuestion,
     roles: ["superadmin", "admin_sucursal", "reportador", "tecnico"],
   },
   {
-    title: "Historial & Ledger",
+    title: nav.history,
     href: "/historial",
     icon: History,
     roles: ["superadmin", "admin_sucursal", "reportador"],
   },
   {
-    title: "Administración",
+    title: nav.admin,
     href: "/admin",
     icon: Settings,
     roles: ["superadmin"],
   },
 ];
 
-export const AppSidebar: React.FC<AppSidebarProps> = ({ role }) => {
+export const AppSidebar: React.FC<AppSidebarProps> = ({
+  role,
+  mobileOpen,
+  onMobileOpenChange,
+}) => {
   const pathname = usePathname();
-  const [isOpenMobile, setIsOpenMobile] = React.useState<boolean>(false);
 
-  const filteredItems = NAV_ITEMS.filter(
-    (item) => item.roles.includes(role) && item.href !== "/inventario/registro-remoto"
-  );
+  const filteredItems = NAV_ITEMS.filter((item) => item.roles.includes(role));
 
-  const handleToggleMobile = (): void => {
-    setIsOpenMobile(!isOpenMobile);
-  };
+  React.useEffect(() => {
+    onMobileOpenChange(false);
+    // El setter de React es estable; se cierra el menú al cambiar de pantalla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
-  const handleCloseMobile = (): void => {
-    setIsOpenMobile(false);
+  const handleClose = (): void => {
+    onMobileOpenChange(false);
   };
 
   return (
     <>
-      {/* Mobile Menu Trigger Header Button */}
-      <div className="md:hidden fixed bottom-4 right-4 z-50">
-        <Button
-          onClick={handleToggleMobile}
-          size="icon"
-          className="h-14 w-14 rounded-full shadow-xl bg-primary text-primary-foreground focus:ring-4 focus:ring-primary/40"
-          aria-label={isOpenMobile ? "Cerrar menú de navegación" : "Abrir menú de navegación"}
-        >
-          {isOpenMobile ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </Button>
-      </div>
-
-      {/* Mobile Drawer Overlay */}
-      {isOpenMobile && (
+      {mobileOpen ? (
         <div
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
-          onClick={handleCloseMobile}
+          onClick={handleClose}
           aria-hidden="true"
         />
-      )}
+      ) : null}
 
-      {/* Sidebar Container */}
       <aside
         className={cn(
-          "fixed top-16 z-40 h-[calc(100vh-4rem)] w-64 border-r bg-card transition-transform duration-300 md:sticky md:translate-x-0 overflow-y-auto",
-          isOpenMobile ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          "fixed top-16 z-40 h-[calc(100vh-4rem)] w-64 overflow-y-auto border-r bg-card transition-transform duration-300 md:sticky md:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
         <div className="flex flex-col gap-1 p-4">
           <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Operaciones ISP
+            {nav.section}
           </div>
 
-          <nav className="space-y-1">
+          <nav className="space-y-1" aria-label="Secciones">
             {filteredItems.map((item) => {
               const Icon = item.icon;
               const isActive =
-                pathname === item.href ||
-                (item.href !== "/inventario" && pathname.startsWith(item.href));
+                item.href === "/inventario"
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   prefetch={true}
-                  onClick={handleCloseMobile}
+                  onClick={handleClose}
                   className={cn(
-                    "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px]",
+                    "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                    <span>{item.title}</span>
-                  </div>
-
-                  {item.badge && (
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-bold tracking-tight",
-                        isActive
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      )}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span>{item.title}</span>
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-8 px-3 py-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground space-y-1">
-            <p className="font-semibold text-foreground">Regla de Stock:</p>
-            <p>
-              El stock nunca se edita manualmente. Es el resultado directo del
-              ledger auditado.
-            </p>
+          <div className="mt-8 space-y-1 rounded-lg border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">Cantidad disponible</p>
+            <p>{hints.stockRule}</p>
           </div>
         </div>
       </aside>

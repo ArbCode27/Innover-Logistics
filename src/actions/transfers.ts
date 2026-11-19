@@ -34,6 +34,13 @@ export const issueTransferAction = async (
     return { success: false, error: "Usuario no autenticado" };
   }
 
+  if (profile.role !== "superadmin" && profile.role !== "admin_sucursal") {
+    return {
+      success: false,
+      error: "Solo el encargado de almacén puede emitir este traslado.",
+    };
+  }
+
   const { origin_location_id, destination_location_id, lines, notes } = parsed.data;
 
   try {
@@ -43,6 +50,7 @@ export const issueTransferAction = async (
       p_destination_location_id: destination_location_id,
       p_lines: lines,
       p_notes: notes || undefined,
+      p_actor_id: profile.id,
     });
 
     if (error) {
@@ -130,7 +138,7 @@ export const getTransfersList = async (
         `
         *,
         branch:branches(*),
-        creator:profiles(*),
+        creator:profiles!documents_created_by_fkey(*),
         origin_location:locations!documents_origin_location_id_fkey(*),
         destination_location:locations!documents_destination_location_id_fkey(*),
         lines:document_lines(

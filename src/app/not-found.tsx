@@ -6,10 +6,10 @@ export default function NotFound() {
     <div className="flex min-h-[60vh] flex-col items-center justify-center text-center px-4">
       <h2 className="text-2xl font-bold tracking-tight">Página no encontrada</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        La ruta solicitada no existe o ha sido reubicada.
+        La página no existe o cambió de lugar.
       </p>
       <Button asChild className="mt-6">
-        <Link href="/inventario">Volver al Inventario</Link>
+        <Link href="/inventario">Volver al inventario</Link>
       </Button>
     </div>
   );

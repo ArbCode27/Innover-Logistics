@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createBranchAction, createItemAction } from "@/actions/admin";
+import { createBranchAction, createItemAction, updateItemAction } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
+import { buttons, terms } from "@/lib/glossary";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -44,6 +45,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Branch, Item, UnitOfMeasure } from "@/types/inventory";
 
 interface AdminManagementViewProps {
@@ -79,6 +87,13 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
     React.useState<boolean>(false);
   const [itemMinStock, setItemMinStock] = React.useState<number>(10);
   const [isCreatingItem, setIsCreatingItem] = React.useState<boolean>(false);
+  const [catalogSearch, setCatalogSearch] = React.useState("");
+  const [editingItem, setEditingItem] = React.useState<Item | null>(null);
+  const [editName, setEditName] = React.useState("");
+  const [editCategory, setEditCategory] = React.useState("");
+  const [editUnit, setEditUnit] = React.useState<UnitOfMeasure>("unidades");
+  const [editMinStock, setEditMinStock] = React.useState(0);
+  const [isSavingItem, setIsSavingItem] = React.useState(false);
 
   const handleCreateBranch = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -128,7 +143,7 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
   const handleCreateItem = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!itemSku || !itemName) {
-      toast.error("El SKU y nombre de ítem son obligatorios");
+      toast.error("El código y el nombre son obligatorios. Escríbelos para agregar el producto.");
       return;
     }
 
@@ -144,12 +159,14 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
       });
 
       if (!res.success) {
-        toast.error("Error al crear ítem", { description: res.error });
+        toast.error("No se pudo agregar el producto. Revisa el código: si ya existe, usa otro.", {
+          description: res.error,
+        });
         setIsCreatingItem(false);
         return;
       }
 
-      toast.success("Ítem agregado al catálogo exitosamente");
+      toast.success("Producto agregado");
       setItemSku("");
       setItemName("");
       setItemMinStock(10);
@@ -161,6 +178,50 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
     }
   };
 
+  const handleOpenEdit = (item: Item): void => {
+    setEditingItem(item);
+    setEditName(item.name);
+    setEditCategory(item.category);
+    setEditUnit(item.unit);
+    setEditMinStock(Number(item.min_stock));
+  };
+
+  const handleSaveItem = async (): Promise<void> => {
+    if (!editingItem) return;
+    if (!editName.trim()) {
+      toast.error("El nombre es obligatorio. Escríbelo para guardar los cambios.");
+      return;
+    }
+    setIsSavingItem(true);
+    try {
+      const res = await updateItemAction({
+        id: editingItem.id,
+        name: editName,
+        category: editCategory,
+        unit: editUnit,
+        min_stock: editMinStock,
+      });
+      if (!res.success) {
+        toast.error(res.error || "No se pudo guardar el producto.");
+        return;
+      }
+      toast.success("Cambios guardados");
+      setEditingItem(null);
+      router.refresh();
+    } finally {
+      setIsSavingItem(false);
+    }
+  };
+
+  const visibleItems = items.filter((item) => {
+    const query = catalogSearch.toLowerCase();
+    return (
+      item.name.toLowerCase().includes(query) ||
+      item.sku.toLowerCase().includes(query) ||
+      item.category.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -170,8 +231,7 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
           Administración Global
         </h1>
         <p className="text-sm text-muted-foreground">
-          Gestión de sucursales, catálogo maestro de materiales y asignación de
-          roles.
+          Sedes y productos. El código de un producto no se cambia después de crearlo.
         </p>
       </div>
 
@@ -183,7 +243,7 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
           </TabsTrigger>
           <TabsTrigger value="catalog" className="gap-2">
             <Boxes className="h-4 w-4" />
-            Catálogo Maestro
+            Productos
           </TabsTrigger>
         </TabsList>
 
@@ -441,16 +501,16 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Boxes className="h-4 w-4 text-primary" />
-                    Registrar Ítem en Catálogo
+                    {buttons.addProduct}
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    Añade un nuevo material o equipo para control de stock.
+                  <CardDescription>
+                    El código no se podrá cambiar después. Los campos vacíos no se guardan.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
                     <Label htmlFor="item-sku" className="text-xs">
-                      Código SKU
+                      {terms.code} *
                     </Label>
                     <Input
                       id="item-sku"
@@ -463,7 +523,7 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
 
                   <div className="space-y-1">
                     <Label htmlFor="item-name" className="text-xs">
-                      Descripción del Material
+                      Nombre del producto *
                     </Label>
                     <Input
                       id="item-name"
@@ -538,7 +598,7 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                             setItemIsSerialized(!!checked)
                           }
                         />
-                        <span>¿Es serializado? (ONU/Router)</span>
+                        <span>Lleva número de serie</span>
                       </label>
                     </div>
                   </div>
@@ -557,7 +617,7 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                     ) : (
                       <>
                         <Plus className="h-4 w-4" />
-                        Añadir al Catálogo
+                        {buttons.addProduct}
                       </>
                     )}
                   </Button>
@@ -568,35 +628,43 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
             {/* Items List */}
             <Card className="border shadow-sm lg:col-span-2 overflow-hidden">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Catálogo Actual</CardTitle>
-                <CardDescription className="text-xs">
-                  {items.length} ítems registrados en el sistema.
+                <CardTitle className="text-base">{terms.products}</CardTitle>
+                <CardDescription>
+                  {items.length} productos. El código no se edita.
                 </CardDescription>
+                <Input
+                  value={catalogSearch}
+                  onChange={(event) => setCatalogSearch(event.target.value)}
+                  placeholder="Buscar por nombre o código"
+                  aria-label="Buscar producto"
+                  className="mt-3 min-h-[44px]"
+                />
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead className="text-center">Unidad</TableHead>
-                      <TableHead className="text-right">Mínimo</TableHead>
+                      <TableHead>{terms.code}</TableHead>
+                      <TableHead>{terms.product}</TableHead>
+                      <TableHead>{terms.category}</TableHead>
+                      <TableHead className="text-center">{terms.unit}</TableHead>
+                      <TableHead className="text-right">{terms.minimum}</TableHead>
+                      <TableHead className="text-right">Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((i) => (
+                    {visibleItems.map((i) => (
                       <TableRow key={i.id}>
-                        <TableCell className="font-mono font-bold text-xs">
+                        <TableCell className="font-mono text-xs font-bold">
                           {i.sku}
                         </TableCell>
-                        <TableCell className="font-medium text-sm">
+                        <TableCell className="text-sm font-medium">
                           {i.name}
-                          {i.is_serialized && (
-                            <Badge variant="secondary" className="ml-2 text-[10px]">
-                              Serial/MAC
+                          {i.is_serialized ? (
+                            <Badge variant="secondary" className="ml-2">
+                              Con serie
                             </Badge>
-                          )}
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {i.category}
@@ -607,6 +675,11 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
                         <TableCell className="text-right font-mono text-xs">
                           {i.min_stock}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button type="button" variant="outline" size="sm" onClick={() => handleOpenEdit(i)}>
+                            Editar
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -616,6 +689,52 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
           </div>
         </TabsContent>
       </Tabs>
+      <Dialog open={Boolean(editingItem)} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Guardar cambios de {editingItem?.sku}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="edit-name">Nombre *</Label>
+              <Input id="edit-name" value={editName} onChange={(event) => setEditName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-category">{terms.category}</Label>
+              <Input id="edit-category" value={editCategory} onChange={(event) => setEditCategory(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>{terms.unit}</Label>
+              <Select value={editUnit} onValueChange={(value) => setEditUnit(value as UnitOfMeasure)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unidades">Unidades</SelectItem>
+                  <SelectItem value="metros">Metros</SelectItem>
+                  <SelectItem value="bobinas">Bobinas</SelectItem>
+                  <SelectItem value="kilogramos">Kilogramos</SelectItem>
+                  <SelectItem value="pares">Pares</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-min">{terms.minimum}</Label>
+              <Input
+                id="edit-min"
+                type="number"
+                min="0"
+                value={editMinStock}
+                onChange={(event) => setEditMinStock(Number(event.target.value) || 0)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditingItem(null)}>{buttons.cancel}</Button>
+            <Button type="button" onClick={() => void handleSaveItem()} disabled={isSavingItem}>
+              {isSavingItem ? "Guardando..." : buttons.saveChanges}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

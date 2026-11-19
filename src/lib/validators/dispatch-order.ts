@@ -28,6 +28,9 @@ export const dispatchOrderFormSchema = z
     // Campos generales
     technician_name: z.string().trim().optional(),
     technician_id: z.string().uuid().optional().nullable(),
+    assigned_technician_id: z
+      .string({ required_error: "Seleccione el técnico que recibe el material" })
+      .uuid({ message: "Seleccione el técnico que recibe el material" }),
     receiver_mode: z.string().default("warehouse_decides"),
     notes: z.string().max(500, { message: "Las notas no deben exceder 500 caracteres" }).optional().nullable(),
     lines: z

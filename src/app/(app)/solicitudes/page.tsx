@@ -3,7 +3,12 @@ import { getLocations, getItemsCatalog } from "@/actions/inventory";
 import { getRequestsList } from "@/actions/requests";
 import { RequestsManagementView } from "@/components/features/requests/requests-management-view";
 
-export default async function RequestsPage() {
+interface RequestsPageProps {
+  searchParams: Promise<{ producto?: string }>;
+}
+
+export default async function RequestsPage({ searchParams }: RequestsPageProps) {
+  const params = await searchParams;
   const profile = await getCurrentProfile();
   const [requests, items, locations] = await Promise.all([
     getRequestsList(profile?.branch_id || undefined),
@@ -23,6 +28,7 @@ export default async function RequestsPage() {
         profile?.branch_id || "b0000000-0000-0000-0000-000000000001"
       }
       userCrewId={profile?.crew_id || undefined}
+      initialProductId={params.producto}
     />
   );
 }

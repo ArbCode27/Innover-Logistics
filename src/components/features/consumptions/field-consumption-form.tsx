@@ -523,7 +523,7 @@ export const FieldConsumptionForm: React.FC<FieldConsumptionFormProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Registrando en Ledger...
+                    Guardando salida...
                   </>
                 ) : (
                   <>

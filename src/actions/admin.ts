@@ -103,6 +103,58 @@ export const createItemAction = async (data: {
   return { success: true, data: { id: `i-${Date.now()}` } };
 };
 
+export const updateItemAction = async (data: {
+  id: string;
+  name: string;
+  category: string;
+  unit: UnitOfMeasure;
+  min_stock: number;
+}): Promise<ActionResult<void>> => {
+  const profile = await getCurrentProfile();
+  if (profile?.role !== "superadmin") {
+    return {
+      success: false,
+      error: "Solo el administrador general puede guardar cambios de un producto.",
+    };
+  }
+
+  if (!data.name.trim()) {
+    return {
+      success: false,
+      error: "El nombre es obligatorio. Escríbelo y vuelve a guardar.",
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await (supabase.from("items") as any)
+      .update({
+        name: data.name.trim(),
+        category: data.category.trim(),
+        unit: data.unit,
+        min_stock: data.min_stock,
+      })
+      .eq("id", data.id);
+
+    if (error) {
+      return {
+        success: false,
+        error:
+          "No se pudo guardar el producto. Revisa el nombre y la cantidad mínima e inténtalo de nuevo.",
+      };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/inventario");
+    return { success: true };
+  } catch {
+    return {
+      success: false,
+      error: "No hay conexión con el servidor. Espera un momento e inténtalo de nuevo.",
+    };
+  }
+};
+
 export const updateUserRoleAction = async (
   userId: string,
   role: UserRole,

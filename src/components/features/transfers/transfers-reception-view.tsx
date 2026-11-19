@@ -45,6 +45,9 @@ import {
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { DocumentVoucherModal } from "@/components/features/history/document-voucher-modal";
+import { PageHeader } from "@/components/shared/page-header";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { buttons, explainError, nav, terms } from "@/lib/glossary";
 import { Printer } from "lucide-react";
 import type { DocumentWithDetails, UserRole } from "@/types/inventory";
 
@@ -72,6 +75,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
   const [isProcessing, setIsProcessing] = React.useState<boolean>(false);
   const [searchTerm, setSearchTerm] = React.useState<string>("");
   const [printTransferId, setPrintTransferId] = React.useState<string | null>(null);
+  const [confirmReject, setConfirmReject] = React.useState(false);
 
   const handleOpenDetails = (doc: DocumentWithDetails): void => {
     setSelectedTransfer(doc);
@@ -110,27 +114,25 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
       });
 
       if (!res.success) {
-        toast.error("Error al procesar la guía", {
-          description: res.error,
-        });
+        toast.error(explainError("recibir el traslado", res.error));
         setIsProcessing(false);
         return;
       }
 
       if (action === "ACCEPT") {
-        toast.success("Guía aceptada con éxito", {
-          description: "El stock ha sido acreditado en el almacén de destino.",
+        toast.success("Traslado recibido", {
+          description: "La cantidad ya está en el almacén de destino.",
         });
       } else {
-        toast.warning("Guía rechazada", {
-          description: "Se generó contra-asiento y el stock retornó al origen.",
+        toast.success("Traslado rechazado", {
+          description: "La cantidad volvió al almacén de origen.",
         });
       }
 
       setSelectedTransfer(null);
       router.refresh();
     } catch {
-      toast.error("Error de conexión al procesar la solicitud");
+      toast.error("No hay conexión. Espera un momento e inténtalo de nuevo.");
     } finally {
       setIsProcessing(false);
     }
@@ -148,27 +150,19 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-            <PackageCheck className="h-7 w-7 text-primary" aria-hidden="true" />
-            Recepción de Guías de Traslado
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Auditoría de envíos en tránsito. Verifique cantidades físicas antes de
-            aceptar o rechazar.
-          </p>
-        </div>
+      <PageHeader
+        icon={PackageCheck}
+        title={nav.receiveTransfer}
+        description="Revisa la cantidad que llegó antes de recibir o rechazar."
+      />
 
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Buscar por correlativo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full sm:w-64 min-h-[44px]"
-          />
-        </div>
-      </div>
+      <Input
+        placeholder="Buscar por número de traslado"
+        aria-label="Buscar traslado"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full min-h-[44px] sm:max-w-sm"
+      />
 
       {/* Pending Alert banner if incoming shipments exist */}
       {pendingCount > 0 && (
@@ -179,8 +173,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
           <div className="flex items-center gap-3">
             <Truck className="h-5 w-5 animate-pulse text-amber-500" />
             <span className="text-sm font-semibold">
-              Tiene {pendingCount} {pendingCount === 1 ? "guía" : "guías"} en
-              tránsito pendientes de recepción física.
+              Hay {pendingCount} {pendingCount === 1 ? "traslado" : "traslados"} en camino. Revísalos antes de recibirlos.
             </span>
           </div>
         </div>
@@ -191,7 +184,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[140px]">N° Correlativo</TableHead>
+              <TableHead className="w-[140px]">Número</TableHead>
               <TableHead>Origen</TableHead>
               <TableHead>Destino</TableHead>
               <TableHead className="hidden md:table-cell">Fecha Emisión</TableHead>
@@ -206,7 +199,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
                   colSpan={6}
                   className="h-32 text-center text-muted-foreground"
                 >
-                  No hay guías de traslado registradas.
+                  No hay traslados.
                 </TableCell>
               </TableRow>
             ) : (
@@ -244,12 +237,12 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
                       {doc.status === "PENDING" ? (
                         <>
                           <FileCheck2 className="h-4 w-4" />
-                          Revisar
+                          {buttons.review}
                         </>
                       ) : (
                         <>
                           <Eye className="h-4 w-4" />
-                          Ver Detalle
+                          {buttons.seeDetail}
                         </>
                       )}
                     </Button>
@@ -271,7 +264,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
             <DialogTitle className="flex items-center justify-between text-lg">
               <span className="flex items-center gap-2">
                 <Truck className="h-5 w-5 text-primary" />
-                Guía {selectedTransfer?.document_number}
+                Traslado {selectedTransfer?.document_number}
               </span>
               <StatusBadge status={selectedTransfer?.status || "PENDING"} />
             </DialogTitle>
@@ -293,12 +286,21 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
                 </div>
               )}
 
+              {selectedTransfer.status === "PENDING_APPROVAL" && (
+                <div
+                  role="status"
+                  className="rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-800 dark:text-blue-300"
+                >
+                  Esta guía espera la aprobación del administrador general. El material sigue en el almacén de origen.
+                </div>
+              )}
+
               {/* Items Breakdown */}
               <div className="border rounded-md overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30">
-                      <TableHead>Ítem / Material</TableHead>
+                      <TableHead>Producto</TableHead>
                       <TableHead className="text-right">Cant. Enviada</TableHead>
                       {selectedTransfer.status === "PENDING" ? (
                         <TableHead className="text-right w-36">
@@ -319,7 +321,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
                             {line.item?.name}
                           </div>
                           <div className="text-xs text-muted-foreground font-mono">
-                            SKU: {line.item?.sku} ({line.item?.unit})
+                            {terms.code}: {line.item?.sku} ({line.item?.unit})
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-mono font-medium">
@@ -337,7 +339,10 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
                                 handleQuantityChange(line.id, e.target.value)
                               }
                               className="w-28 text-right ml-auto h-9 font-mono"
+                              aria-label={`Cantidad recibida de ${line.item?.name || "producto"}`}
                             />
+                          ) : selectedTransfer.status === "PENDING_APPROVAL" ? (
+                            <span className="text-xs text-muted-foreground">Aún no sale</span>
                           ) : (
                             <span className="font-mono font-bold text-foreground">
                               {formatNumber(
@@ -388,6 +393,7 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
                 type="button"
                 variant="outline"
                 onClick={() => setPrintTransferId(selectedTransfer?.id || null)}
+                disabled={selectedTransfer?.status === "PENDING_APPROVAL"}
                 className="gap-1.5 text-xs h-9"
               >
                 <Printer className="h-4 w-4" />
@@ -399,20 +405,20 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
               <div className="flex items-center gap-2">
                 <Button
                   variant="destructive"
-                  onClick={() => handleConfirmReception("REJECT")}
+                  onClick={() => setConfirmReject(true)}
                   disabled={isProcessing}
                   className="gap-1 min-h-[44px]"
                 >
                   <XCircle className="h-4 w-4" />
-                  Rechazar Envío
+                  {buttons.rejectTransfer}
                 </Button>
                 <Button
                   onClick={() => handleConfirmReception("ACCEPT")}
                   disabled={isProcessing}
-                  className="gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold min-h-[44px]"
+                  className="gap-1 font-semibold"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  Aceptar y Acreditar Stock
+                  {buttons.receiveTransfer}
                 </Button>
               </div>
             )}
@@ -420,7 +426,20 @@ export const TransfersReceptionView: React.FC<TransfersReceptionViewProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Official Voucher Print Dialog */}
+      <ConfirmDialog
+        open={confirmReject}
+        title="¿Rechazar este traslado?"
+        description="La cantidad vuelve al almacén de origen. Si el producto sí llegó, ciérralo y recíbelo."
+        confirmLabel={buttons.rejectTransfer}
+        destructive
+        pending={isProcessing}
+        onCancel={() => setConfirmReject(false)}
+        onConfirm={() => {
+          setConfirmReject(false);
+          void handleConfirmReception("REJECT");
+        }}
+      />
+
       <DocumentVoucherModal
         documentId={printTransferId}
         docNumber={null}

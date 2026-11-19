@@ -27,6 +27,13 @@ export const createDispatchOrderAction = async (
     return { success: false, error: "Usuario no autenticado" };
   }
 
+  if (profile.role !== "superadmin" && profile.role !== "admin_sucursal") {
+    return {
+      success: false,
+      error: "Solo el encargado de almacén puede emitir esta orden.",
+    };
+  }
+
   const {
     location_id,
     work_type,
@@ -35,7 +42,7 @@ export const createDispatchOrderAction = async (
     client_code,
     project_name,
     technician_name,
-    technician_id,
+    assigned_technician_id,
     receiver_mode,
     notes,
     lines,
@@ -52,9 +59,11 @@ export const createDispatchOrderAction = async (
       p_project_name: project_name || null,
       p_technician_name: technician_name || null,
       p_receiver_mode: receiver_mode || "warehouse_decides",
-      p_technician_id: technician_id || null,
+      p_technician_id: assigned_technician_id,
+      p_assigned_technician_id: assigned_technician_id,
       p_notes: notes || null,
       p_lines: lines,
+      p_actor_id: profile.id,
     });
 
     if (error) {
@@ -102,7 +111,7 @@ export const getDispatchOrdersHistory = async (
         `
         *,
         branch:branches(*),
-        creator:profiles(*),
+        creator:profiles!documents_created_by_fkey(*),
         origin_location:locations!documents_origin_location_id_fkey(*),
         lines:document_lines(
           *,

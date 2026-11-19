@@ -14,7 +14,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { assignStockToCrewAction, createCrewLocationAction } from "@/actions/crews";
+import { assignStockToCrewAction, createCrewLocationAction, getCrewStock } from "@/actions/crews";
+import { getInventoryStock } from "@/actions/inventory";
+import { buttons, explainError, hints, nav, terms } from "@/lib/glossary";
+import { usePagedList } from "@/lib/use-paged-list";
+import { PageHeader } from "@/components/shared/page-header";
+import { ListPager } from "@/components/shared/list-pager";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { EmptyState } from "@/components/features/inventory/design-system/empty-state";
+import { InventoryTableSkeleton } from "@/components/features/inventory/design-system/inventory-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,15 +99,42 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
   );
   const [assignmentLines, setAssignmentLines] = React.useState<
     { item_id: string; quantity: number }[]
-  >([{ item_id: items[0]?.id || "", quantity: 10 }]);
+  >([{ item_id: items[0]?.id || "", quantity: 1 }]);
   const [assignmentNotes, setAssignmentNotes] = React.useState<string>("");
+  const [crewStock, setCrewStock] = React.useState(initialCrewStock);
+  React.useEffect(() => {
+    setCrewStock(initialCrewStock);
+  }, [initialCrewStock]);
+  const [isLoadingCrew, setIsLoadingCrew] = React.useState(false);
+  const [crewSearch, setCrewSearch] = React.useState("");
+  const [onlyWithStock, setOnlyWithStock] = React.useState(true);
+  const [originStock, setOriginStock] = React.useState<StockItemWithBalance[]>([]);
+  const [showAssignConfirm, setShowAssignConfirm] = React.useState(false);
 
   const selectedCrew = crews.find((c) => c.id === selectedCrewId) || crews[0];
+
+  const handleSelectCrew = async (crewId: string): Promise<void> => {
+    setSelectedCrewId(crewId);
+    setIsLoadingCrew(true);
+    try {
+      const next = await getCrewStock(crewId);
+      setCrewStock(next);
+    } catch {
+      toast.error(explainError("cargar la cuadrilla"), { description: hints.connection });
+    } finally {
+      setIsLoadingCrew(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!originWarehouseId) return;
+    void getInventoryStock(originWarehouseId).then(setOriginStock).catch(() => setOriginStock([]));
+  }, [originWarehouseId, isAssignModalOpen]);
 
   const handleAddLine = (): void => {
     setAssignmentLines((prev) => [
       ...prev,
-      { item_id: items[0]?.id || "", quantity: 5 },
+      { item_id: items[0]?.id || "", quantity: 1 },
     ]);
   };
 
@@ -133,62 +168,62 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
       });
 
       if (!res.success) {
-        toast.error("Error al asignar material", {
-          description: res.error,
-        });
+        toast.error(explainError("asignar los productos", res.error));
         setIsSubmitting(false);
         return;
       }
 
-      toast.success("Material asignado a la cuadrilla", {
-        description: `Comprobante de entrega generado: ${res.data?.document_number}`,
+      toast.success("Productos asignados a la cuadrilla", {
+        description: `Comprobante: ${res.data?.document_number}`,
       });
 
       setIsAssignModalOpen(false);
       setAssignmentNotes("");
+      const next = await getCrewStock(selectedCrew.id);
+      setCrewStock(next);
       router.refresh();
     } catch {
-      toast.error("Error inesperado en el servidor");
+      toast.error(hints.connection);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const visibleCrewStock = crewStock.filter((item) => {
+    const query = crewSearch.toLowerCase();
+    const matches =
+      item.name.toLowerCase().includes(query) ||
+      item.sku.toLowerCase().includes(query);
+    const hasQty = !onlyWithStock || Number(item.current_stock) > 0;
+    return matches && hasQty;
+  });
+  const crewPager = usePagedList(
+    visibleCrewStock,
+    `${crewSearch}|${onlyWithStock}|${selectedCrewId}`
+  );
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-            <Users className="h-7 w-7 text-primary" aria-hidden="true" />
-            Control de Cuadrillas Técnicas
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Monitoreo de stock en móviles de instalación y asignaciones directas
-            desde almacén.
-          </p>
-        </div>
-
-        {["superadmin", "admin_sucursal"].includes(userRole) && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsCreateCrewOpen(true)}
-              className="gap-2 font-semibold min-h-[44px]"
-            >
-              <Plus className="h-4 w-4" />
-              Nueva Cuadrilla
-            </Button>
-            <Button
-              onClick={() => setIsAssignModalOpen(true)}
-              className="gap-2 font-semibold shadow-sm min-h-[44px]"
-            >
-              <PackagePlus className="h-4 w-4" />
-              Asignar Material a Cuadrilla
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        icon={Users}
+        title={nav.crews}
+        description="Mira lo que lleva cada cuadrilla y asígnale productos desde el almacén."
+        action={
+          ["superadmin", "admin_sucursal"].includes(userRole) ? (
+            <>
+              <Button variant="outline" onClick={() => setIsCreateCrewOpen(true)} className="gap-2 font-semibold">
+                <Plus className="h-4 w-4" />
+                {buttons.newCrew}
+              </Button>
+              <Button onClick={() => setIsAssignModalOpen(true)} className="gap-2 font-semibold">
+                <PackagePlus className="h-4 w-4" />
+                {buttons.assignToCrew}
+              </Button>
+            </>
+          ) : null
+        }
+      />
 
       {/* Crew Selector Buttons */}
       <div className="flex flex-wrap gap-2">
@@ -197,7 +232,9 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
             key={crew.id}
             variant={crew.id === selectedCrewId ? "default" : "outline"}
             size="sm"
-            onClick={() => setSelectedCrewId(crew.id)}
+            onClick={() => {
+              void handleSelectCrew(crew.id);
+            }}
             className="gap-2 min-h-[44px]"
           >
             <Users className="h-4 w-4" />
@@ -211,51 +248,82 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3">
           <div>
             <CardTitle className="text-lg">
-              Inventario de la Cuadrilla: {selectedCrew?.name}
+              {terms.products} de {selectedCrew?.name || "la cuadrilla"}
             </CardTitle>
-            <CardDescription className="text-xs">
-              Material cargado y disponible para consumo en campo en vehículos y
-              móviles.
+            <CardDescription>
+              Solo se muestra lo que esta cuadrilla tiene ahora.
             </CardDescription>
           </div>
-          <Badge variant="info">Código: {selectedCrew?.code}</Badge>
+          <Badge variant="secondary">{terms.code}: {selectedCrew?.code}</Badge>
         </CardHeader>
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={crewSearch}
+              onChange={(event) => setCrewSearch(event.target.value)}
+              placeholder="Buscar por nombre o código"
+              aria-label="Buscar producto de la cuadrilla"
+              className="min-h-[44px]"
+            />
+            <Button
+              type="button"
+              variant={onlyWithStock ? "default" : "outline"}
+              onClick={() => setOnlyWithStock((current) => !current)}
+            >
+              {onlyWithStock ? "Con cantidad" : "Ver todos"}
+            </Button>
+          </div>
+        </CardContent>
         <CardContent className="p-0">
+          {isLoadingCrew ? (
+            <InventoryTableSkeleton rows={4} />
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Descripción del Material</TableHead>
-                <TableHead className="text-center">Unidad</TableHead>
-                <TableHead className="text-right font-bold">
-                  Stock en Móvil
-                </TableHead>
+                <TableHead>{terms.code}</TableHead>
+                <TableHead>{terms.product}</TableHead>
+                <TableHead className="text-center">{terms.unit}</TableHead>
+                <TableHead className="text-right font-bold">{terms.available}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialCrewStock.map((item) => (
+              {visibleCrewStock.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="p-4">
+                    <EmptyState
+                      title="Esta cuadrilla no tiene productos"
+                      description="Asigna productos desde el almacén para que el técnico pueda usarlos."
+                      actionLabel={buttons.assignToCrew}
+                      onAction={() => setIsAssignModalOpen(true)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                crewPager.rows.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-mono text-xs font-semibold">
                     {item.sku}
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{item.name}</div>
-                    {item.is_serialized && (
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Cpu className="h-3 w-3" /> Equipo serializado
-                      </span>
-                    )}
+                    {item.is_serialized ? (
+                      <span className="text-xs text-muted-foreground">Con número de serie</span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-center text-xs">
                     <Badge variant="outline">{item.unit}</Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono font-bold text-base">
+                  <TableCell className="text-right font-mono text-base font-bold">
                     {formatNumber(Number(item.current_stock), 0)}
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
+          )}
+          <ListPager page={crewPager.page} pageCount={crewPager.pageCount} total={crewPager.total} onPage={crewPager.setPage} />
         </CardContent>
       </Card>
 
@@ -265,11 +333,10 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PackagePlus className="h-5 w-5 text-primary" />
-              Asignar Material desde Almacén a {selectedCrew?.name}
+              Asignar productos a {selectedCrew?.name}
             </DialogTitle>
             <DialogDescription>
-              Esta operación descuenta de la bodega central y suma al stock de la
-              cuadrilla mediante comprobante auditado.
+              Se resta del almacén y se suma a la cuadrilla. Esta acción no se puede deshacer desde aquí: si hay un error, anúlala en el historial.
             </DialogDescription>
           </DialogHeader>
 
@@ -296,7 +363,7 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold">
-                  Líneas de Material a Entregar
+                  {terms.products}
                 </Label>
                 <Button
                   type="button"
@@ -306,7 +373,7 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
                   className="gap-1 min-h-[36px]"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Añadir
+                  {buttons.addLine}
                 </Button>
               </div>
 
@@ -326,11 +393,16 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
                         <SelectValue placeholder="Seleccione material" />
                       </SelectTrigger>
                       <SelectContent>
-                        {items.map((i) => (
-                          <SelectItem key={i.id} value={i.id} className="text-xs">
-                            [{i.sku}] {i.name} ({i.unit})
-                          </SelectItem>
-                        ))}
+                        {items.map((item) => {
+                          const available =
+                            originStock.find((stockItem) => stockItem.id === item.id)
+                              ?.current_stock ?? 0;
+                          return (
+                            <SelectItem key={item.id} value={item.id} className="text-xs">
+                              {item.name} · {available} disponibles
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -348,6 +420,12 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
                     }
                     className="w-24 h-10 text-right font-mono text-sm"
                   />
+                  {Number(line.quantity) >
+                  Number(originStock.find((stockItem) => stockItem.id === line.item_id)?.current_stock ?? 0) ? (
+                    <p className="w-full text-xs text-destructive">
+                      Pides más de lo que hay en el almacén. Baja la cantidad o elige otro producto.
+                    </p>
+                  ) : null}
 
                   {assignmentLines.length > 1 && (
                     <Button
@@ -387,21 +465,11 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
               Cancelar
             </Button>
             <Button
-              onClick={handleConfirmAssignment}
+              onClick={() => setShowAssignConfirm(true)}
               disabled={isSubmitting}
               className="gap-2 font-semibold shadow-md min-h-[44px]"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Asignando...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Confirmar Asignación
-                </>
-              )}
+              {buttons.assignToCrew}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -413,10 +481,10 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary">
               <Users className="h-5 w-5" />
-              Crear Sub-almacén Móvil / Cuadrilla
+              Crear cuadrilla
             </DialogTitle>
             <DialogDescription>
-              Registra un nuevo técnico o vehículo de operaciones para asignarle materiales en campo.
+              Registra el equipo o el vehículo que va a llevar productos.
             </DialogDescription>
           </DialogHeader>
 
@@ -507,7 +575,7 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
                 ) : (
                   <>
                     <Plus className="h-4 w-4" />
-                    Registrar Cuadrilla
+                    {buttons.newCrew}
                   </>
                 )}
               </Button>
@@ -515,6 +583,18 @@ export const CrewsManagementView: React.FC<CrewsManagementViewProps> = ({
           </form>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={showAssignConfirm}
+        title="¿Asignar estos productos?"
+        description="La cantidad sale del almacén y entra a la cuadrilla. Si te equivocas, anula el comprobante en el historial."
+        confirmLabel={buttons.assignToCrew}
+        pending={isSubmitting}
+        onCancel={() => setShowAssignConfirm(false)}
+        onConfirm={() => {
+          setShowAssignConfirm(false);
+          void handleConfirmAssignment();
+        }}
+      />
     </div>
   );
 };

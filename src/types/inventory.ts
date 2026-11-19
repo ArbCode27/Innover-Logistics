@@ -21,6 +21,7 @@ export type StockMovement = Database["public"]["Tables"]["stock_movements"]["Row
 export type StockBalance = Database["public"]["Tables"]["stock_balances"]["Row"];
 export type MaterialRequest = Database["public"]["Tables"]["material_requests"]["Row"];
 export type AuditLogEntry = Database["public"]["Tables"]["audit_log"]["Row"];
+export type Technician = Database["public"]["Tables"]["technicians"]["Row"];
 export type ScanSessionRecord = Database["public"]["Tables"]["scan_sessions"]["Row"];
 
 export type ProductNature = "serialized_device" | "tool" | "consumable";
@@ -53,6 +54,8 @@ export interface DocumentWithDetails extends Document {
   project_name?: string | null;
   technician_name?: string | null;
   technician_id?: string | null;
+  assigned_technician_id?: string | null;
+  review_notes?: string | null;
   receiver_mode?: string | null;
   delivery_note_number?: string | null;
   supplier_name?: string | null;

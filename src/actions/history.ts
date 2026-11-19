@@ -106,7 +106,7 @@ export const getDocumentVoucherDetails = async (
         `
         *,
         branch:branches(*),
-        creator:profiles(*),
+        creator:profiles!documents_created_by_fkey(*),
         origin_location:locations!documents_origin_location_id_fkey(*),
         destination_location:locations!documents_destination_location_id_fkey(*),
         lines:document_lines(

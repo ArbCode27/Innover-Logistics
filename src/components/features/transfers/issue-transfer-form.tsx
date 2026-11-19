@@ -50,7 +50,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { Item, Location } from "@/types/inventory";
+import { getInventoryStock } from "@/actions/inventory";
+import { buttons, explainError, hints, nav, terms } from "@/lib/glossary";
+import { RequiredMark } from "@/components/shared/required-mark";
+import { PageHeader } from "@/components/shared/page-header";
+import { clearFormDraft, useFormDraft } from "@/lib/use-form-draft";
+import { readFormDraft } from "@/lib/use-form-draft";
+import type { Item, Location, StockItemWithBalance } from "@/types/inventory";
 
 interface IssueTransferFormProps {
   locations: Location[];
@@ -70,6 +76,8 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
   const [pendingData, setPendingData] =
     React.useState<IssueTransferInput | null>(null);
 
+  const [originStock, setOriginStock] = React.useState<StockItemWithBalance[]>([]);
+
   const warehouseLocations = locations.filter((l) => l.type === "branch");
 
   const defaultOrigin =
@@ -83,9 +91,11 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
     handleSubmit,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<IssueTransferInput>({
     resolver: zodResolver(issueTransferSchema),
+    mode: "onChange",
     defaultValues: {
       origin_location_id: defaultOrigin,
       destination_location_id: defaultDest,
@@ -93,12 +103,15 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
       lines: [
         {
           item_id: items[0]?.id || "",
-          quantity: 10,
+          quantity: 1,
           notes: "",
         },
       ],
     },
   });
+
+  useFormDraft<IssueTransferInput>("draft:traslado", watch);
+  const restoredDraft = React.useRef(false);
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -107,6 +120,19 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
 
   const selectedOrigin = watch("origin_location_id");
   const selectedDest = watch("destination_location_id");
+
+  React.useEffect(() => {
+    if (restoredDraft.current) return;
+    restoredDraft.current = true;
+    const saved = readFormDraft<IssueTransferInput>("draft:traslado");
+    if (!saved?.origin_location_id) return;
+    reset(saved);
+  }, [reset]);
+
+  React.useEffect(() => {
+    if (!selectedOrigin) return;
+    void getInventoryStock(selectedOrigin).then(setOriginStock).catch(() => setOriginStock([]));
+  }, [selectedOrigin]);
 
   const handleOpenConfirm = (data: IssueTransferInput): void => {
     setPendingData(data);
@@ -121,21 +147,20 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
     try {
       const res = await issueTransferAction(pendingData);
       if (!res.success) {
-        toast.error("Error al emitir guía de traslado", {
-          description: res.error,
-        });
+        toast.error(explainError("registrar el traslado", res.error));
         setIsSubmitting(false);
         return;
       }
 
-      toast.success("Guía de traslado emitida exitosamente", {
-        description: `Correlativo generado: ${res.data?.document_number}. El material queda en tránsito.`,
+      toast.success("Traslado enviado a aprobación", {
+        description: `Número ${res.data?.document_number}. El material sigue en el origen hasta que el administrador general lo autorice.`,
       });
+      clearFormDraft("draft:traslado");
 
       router.push("/guias/recepcion");
       router.refresh();
     } catch {
-      toast.error("Error inesperado en el servidor");
+      toast.error(hints.connection);
       setIsSubmitting(false);
     }
   };
@@ -143,31 +168,26 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-          <Truck className="h-7 w-7 text-primary" aria-hidden="true" />
-          Emitir Guía de Traslado Inter-Sedes
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Al emitir, el stock se descuenta inmediatamente del almacén origen y
-          permanece en estado PENDIENTE hasta su recepción formal en destino.
-        </p>
-      </div>
+      <PageHeader
+        icon={Truck}
+        title={nav.sendTransfer}
+        description="La orden queda pendiente de aprobación. El material sale del origen cuando el administrador general la autoriza, y el destino lo recibe después."
+      />
 
       <form onSubmit={handleSubmit(handleOpenConfirm)} className="space-y-6">
         {/* Origin & Destination Card */}
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">
-              1. Sedes y Almacenes Involucrados
+              1. Almacenes
             </CardTitle>
-            <CardDescription className="text-xs">
-              Especifique la procedencia y el destino del envío físico.
+            <CardDescription>
+              Elige de dónde sale y a dónde llega. Los campos con * son obligatorios.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="origin_location_id">Almacén Origen</Label>
+              <Label htmlFor="origin_location_id">{terms.warehouse} de origen<RequiredMark /></Label>
               <Select
                 value={selectedOrigin}
                 onValueChange={(val) =>
@@ -193,7 +213,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="destination_location_id">Almacén Destino</Label>
+              <Label htmlFor="destination_location_id">{terms.warehouse} de destino<RequiredMark /></Label>
               <Select
                 value={watch("destination_location_id")}
                 onValueChange={(val) =>
@@ -227,10 +247,10 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
               <CardTitle className="text-base font-semibold">
-                2. Materiales y Equipos a Transferir
+                2. {terms.products}
               </CardTitle>
-              <CardDescription className="text-xs">
-                Añada cada línea con su cantidad exacta.
+              <CardDescription>
+                Agrega cada producto y la cantidad. Se muestra cuánto hay en el origen.
               </CardDescription>
             </div>
 
@@ -248,7 +268,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
               className="gap-1 min-h-[38px]"
             >
               <Plus className="h-4 w-4" />
-              Añadir Ítem
+              {buttons.addLine}
             </Button>
           </CardHeader>
 
@@ -260,7 +280,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
                   className="flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border bg-muted/20"
                 >
                   <div className="flex-1 w-full space-y-1.5">
-                    <Label className="text-xs">Ítem / Descripción</Label>
+                    <Label className="text-xs">{terms.product}<RequiredMark /></Label>
                     <Select
                       value={watch(`lines.${index}.item_id`)}
                       onValueChange={(val) =>
@@ -268,20 +288,25 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
                       }
                     >
                       <SelectTrigger className="min-h-[44px]">
-                        <SelectValue placeholder="Seleccione ítem" />
+                        <SelectValue placeholder="Elige un producto" />
                       </SelectTrigger>
                       <SelectContent>
-                        {items.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            [{item.sku}] {item.name} ({item.unit})
-                          </SelectItem>
-                        ))}
+                        {items.map((item) => {
+                          const available =
+                            originStock.find((stockItem) => stockItem.id === item.id)
+                              ?.current_stock ?? 0;
+                          return (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.name} · {available} disponibles
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="w-full sm:w-32 space-y-1.5">
-                    <Label className="text-xs">Cantidad</Label>
+                    <Label className="text-xs">{terms.quantity}<RequiredMark /></Label>
                     <Input
                       type="number"
                       step="any"
@@ -309,7 +334,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
                       size="icon"
                       onClick={() => remove(index)}
                       className="text-destructive hover:bg-destructive/10 shrink-0 h-11 w-11"
-                      aria-label="Eliminar línea"
+                    aria-label={buttons.removeLine}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -332,7 +357,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
         <Card className="border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold">
-              3. Motivo y Observaciones del Traslado
+              3. Notas del traslado
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -365,7 +390,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  Emitir Guía de Traslado
+                  {buttons.registerTransfer}
                 </>
               )}
             </Button>
@@ -379,15 +404,14 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />
-              ¿Confirmar emisión de guía de traslado?
+              ¿Registrar este traslado?
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2 text-sm text-muted-foreground">
               <p>
-                Esta acción creará un correlativo oficial y descontará de forma
-                inmediata los ítems del almacén de origen en el ledger contable.
+                La cantidad no sale todavía. El administrador general debe aprobar el traslado. Después, el destino lo recibe.
               </p>
               <p className="font-semibold text-foreground">
-                Total de líneas a transferir: {pendingData?.lines.length}
+                Productos en este traslado: {pendingData?.lines.length}
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -397,7 +421,7 @@ export const IssueTransferForm: React.FC<IssueTransferFormProps> = ({
               onClick={handleConfirmSubmit}
               className="bg-primary text-primary-foreground font-semibold"
             >
-              Sí, emitir traslado
+              {buttons.registerTransfer}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

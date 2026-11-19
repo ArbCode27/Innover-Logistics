@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const transferLineSchema = z.object({
-  item_id: z.string().uuid({ message: "ID de ítem inválido" }),
+  item_id: z.string().uuid({ message: "Elige un producto de la lista." }),
   quantity: z
     .number({ invalid_type_error: "La cantidad debe ser numérica" })
     .positive({ message: "La cantidad debe ser mayor a 0" }),
@@ -19,7 +19,7 @@ export const issueTransferSchema = z
       .uuid({ message: "Seleccione el almacén de destino" }),
     lines: z
       .array(transferLineSchema)
-      .min(1, { message: "Debe agregar al menos un ítem a la transferencia" }),
+      .min(1, { message: "Agrega al menos un producto al traslado." }),
     notes: z.string().max(500).optional().nullable(),
   })
   .refine(

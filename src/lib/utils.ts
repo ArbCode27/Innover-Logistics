@@ -64,6 +64,10 @@ export const formatDatabaseError = (error: unknown): string => {
     return "No se pudo identificar al usuario responsable de la emisión. Verifique su sesión activa.";
   }
 
+  if (message.includes("uq_technicians_document_id")) {
+    return "Ya existe un técnico registrado con esa cédula.";
+  }
+
   if (message.includes("unique") || message.includes("duplicate key")) {
     return "El registro o correlativo ya existe en el sistema. Intente nuevamente.";
   }

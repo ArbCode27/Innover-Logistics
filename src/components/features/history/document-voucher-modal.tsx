@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { buttons } from "@/lib/glossary";
 import type { DocumentWithDetails } from "@/types/inventory";
 
 interface DocumentVoucherModalProps {
@@ -141,7 +142,7 @@ export const DocumentVoucherModal: React.FC<DocumentVoucherModalProps> = ({
         <DialogHeader className="print:hidden pb-2 border-b flex flex-row items-center justify-between">
           <DialogTitle className="flex items-center gap-2 text-primary text-base">
             <FileText className="h-5 w-5" />
-            Comprobante Oficial de Movimiento
+            Comprobante
           </DialogTitle>
           <div className="flex items-center gap-2">
             <Button
@@ -150,7 +151,7 @@ export const DocumentVoucherModal: React.FC<DocumentVoucherModalProps> = ({
               className="gap-1.5 bg-primary font-semibold min-h-[38px]"
             >
               <Printer className="h-4 w-4" />
-              Imprimir / PDF
+              {buttons.printVoucher}
             </Button>
           </div>
         </DialogHeader>
@@ -158,11 +159,11 @@ export const DocumentVoucherModal: React.FC<DocumentVoucherModalProps> = ({
         {isLoading ? (
           <div className="flex flex-col items-center justify-center p-12 text-muted-foreground gap-2">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm">Cargando datos oficiales del documento...</p>
+            <p className="text-sm">Cargando el comprobante...</p>
           </div>
         ) : !doc ? (
           <div className="text-center py-10 text-muted-foreground">
-            No se pudo cargar la información del documento.
+            No se pudo abrir el comprobante. Cierra esta ventana e inténtalo de nuevo.
           </div>
         ) : (
           <div className="space-y-6 text-foreground print:text-black print:space-y-4 print:text-xs">
@@ -268,7 +269,7 @@ export const DocumentVoucherModal: React.FC<DocumentVoucherModalProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-muted/50 print:bg-gray-100 border-b print:border-black">
                     <tr>
-                      <th className="p-2.5 font-bold">SKU</th>
+                      <th className="p-2.5 font-bold">Código</th>
                       <th className="p-2.5 font-bold">Descripción del Material</th>
                       <th className="p-2.5 text-right font-bold">Cantidad</th>
                       <th className="p-2.5 font-bold">Unidad</th>
@@ -279,7 +280,7 @@ export const DocumentVoucherModal: React.FC<DocumentVoucherModalProps> = ({
                     {doc.lines && doc.lines.length > 0 ? (
                       doc.lines.map((line, idx) => (
                         <tr key={line.id || idx} className="hover:bg-muted/20">
-                          <td className="p-2.5 font-mono font-semibold">{line.item?.sku || "SKU"}</td>
+                          <td className="p-2.5 font-mono font-semibold">{line.item?.sku || "Sin código"}</td>
                           <td className="p-2.5 font-medium">{line.item?.name || "Material"}</td>
                           <td className="p-2.5 text-right font-mono font-bold text-sm">
                             {formatNumber(Number(line.quantity), 0)}
@@ -300,7 +301,7 @@ export const DocumentVoucherModal: React.FC<DocumentVoucherModalProps> = ({
                     ) : (
                       <tr>
                         <td colSpan={5} className="p-4 text-center text-muted-foreground">
-                          Movimiento registrado en Ledger General.
+                          Movimiento registrado en el historial.
                         </td>
                       </tr>
                     )}

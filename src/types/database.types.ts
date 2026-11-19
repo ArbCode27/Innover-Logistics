@@ -10,9 +10,22 @@ export type UserRole = "superadmin" | "admin_sucursal" | "reportador" | "tecnico
 export type LocationType = "branch" | "crew";
 export type UnitOfMeasure = "metros" | "bobinas" | "unidades" | "kilogramos" | "pares";
 export type DocumentType = "purchase" | "transfer" | "assignment" | "consumption" | "return" | "adjustment";
-export type DocumentStatus = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type DocumentStatus =
+  | "DRAFT"
+  | "PENDING"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED";
 export type RequestStatus = "REQUESTED" | "APPROVED" | "DELIVERED" | "CONSUMED" | "RETURNED" | "REJECTED";
-export type SerialStatus = "in_stock" | "in_transit" | "assigned_crew" | "consumed" | "damaged" | "returned";
+export type SerialStatus =
+  | "in_stock"
+  | "in_transit"
+  | "assigned_crew"
+  | "consumed"
+  | "damaged"
+  | "returned"
+  | "reserved";
 export type MovementType =
   | "purchase"
   | "transfer_out"
@@ -274,7 +287,9 @@ export type Database = {
           project_name?: string | null;
           technician_name?: string | null;
           technician_id?: string | null;
+          assigned_technician_id?: string | null;
           receiver_mode?: string | null;
+          review_notes?: string | null;
           delivery_note_number?: string | null;
           supplier_name?: string | null;
           supplier_rif?: string | null;
@@ -306,7 +321,9 @@ export type Database = {
           project_name?: string | null;
           technician_name?: string | null;
           technician_id?: string | null;
+          assigned_technician_id?: string | null;
           receiver_mode?: string | null;
+          review_notes?: string | null;
           delivery_note_number?: string | null;
           supplier_name?: string | null;
           supplier_rif?: string | null;
@@ -338,7 +355,9 @@ export type Database = {
           project_name?: string | null;
           technician_name?: string | null;
           technician_id?: string | null;
+          assigned_technician_id?: string | null;
           receiver_mode?: string | null;
+          review_notes?: string | null;
           delivery_note_number?: string | null;
           supplier_name?: string | null;
           supplier_rif?: string | null;
@@ -583,6 +602,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      technicians: {
+        Row: {
+          id: string;
+          full_name: string;
+          document_id: string;
+          phone: string | null;
+          branch_id: string;
+          profile_id: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          full_name: string;
+          document_id: string;
+          phone?: string | null;
+          branch_id: string;
+          profile_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          full_name?: string;
+          document_id?: string;
+          phone?: string | null;
+          branch_id?: string;
+          profile_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -601,6 +656,7 @@ export type Database = {
           p_destination_location_id: string;
           p_lines: Json;
           p_notes?: string;
+          p_actor_id?: string;
         };
         Returns: {
           success: boolean;

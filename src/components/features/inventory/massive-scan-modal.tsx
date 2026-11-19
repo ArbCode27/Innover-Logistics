@@ -778,9 +778,9 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
               </div>
               <div>
                 <DialogTitle className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                  <span>Ingreso Masivo con Cámara</span>
+                  <span>Registrar entrada con cámara</span>
                   <Badge variant="outline" className="text-xs font-mono">
-                    Modo Ráfaga
+                    Varios seguidos
                   </Badge>
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
@@ -1089,7 +1089,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
               </div>
 
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>SKU: <strong className="text-foreground font-mono">{currentItem.sku}</strong></span>
+                <span>Código: <strong className="text-foreground font-mono">{currentItem.sku}</strong></span>
                 <span>Unidad: <strong className="text-foreground uppercase">{currentItem.unit}</strong></span>
               </div>
             </div>
@@ -1195,7 +1195,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                           <Input
                             value={itemSearchTerm}
                             onChange={(e) => setItemSearchTerm(e.target.value)}
-                            placeholder="Buscar por nombre, modelo, SKU..."
+                            placeholder="Buscar por nombre o código"
                             className="h-8 pl-8 text-xs bg-muted/40"
                             autoFocus
                           />
@@ -1246,7 +1246,7 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
                                           : "text-muted-foreground"
                                       }`}
                                     >
-                                      SKU: {i.sku} • {i.category}
+                                      Código: {i.sku} • {i.category}
                                     </div>
                                   </div>
                                   {isSelected && (
