@@ -36,12 +36,11 @@ export const StockGauge: React.FC<StockGaugeProps> = ({
       </div>
 
       {/* Circular SVG Gauge (SyncDepth Bite Alert Inspired) */}
-      <div className="relative flex items-center justify-center py-2">
+      <div className="relative flex items-center justify-center py-2 px-4">
         <svg
           className="h-36 w-36 -rotate-90 transform"
           viewBox="0 0 130 130"
-          aria-hidden="true"
-        >
+          aria-hidden="true">
           {/* Background Outer Dotted Track */}
           <circle
             cx="65"
@@ -83,7 +82,12 @@ export const StockGauge: React.FC<StockGaugeProps> = ({
 
           {/* Gradient definition */}
           <defs>
-            <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient
+              id="gauge-gradient"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%">
               <stop offset="0%" stopColor="hsl(var(--royal))" />
               <stop offset="100%" stopColor="hsl(var(--cielo))" />
             </linearGradient>
@@ -92,10 +96,10 @@ export const StockGauge: React.FC<StockGaugeProps> = ({
 
         {/* Center Percentage Display */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+          <span className="text-2xl sm:text-2xl font-extrabold tracking-tight text-foreground">
             {percentage}%
           </span>
-          <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="text-[8px] sm:text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             Cero Merma
           </span>
         </div>
@@ -104,7 +108,9 @@ export const StockGauge: React.FC<StockGaugeProps> = ({
       {/* Footer info pills */}
       <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
         <span>{sublabel}</span>
-        <span className="font-mono font-medium text-foreground">OT-8842-OK</span>
+        <span className="font-mono font-medium text-foreground">
+          OT-8842-OK
+        </span>
       </div>
     </div>
   );
