@@ -57,11 +57,15 @@ export const issueTransferAction = async (
         data: { document_number: data.document_number },
       };
     }
-  } catch {
-    // If Supabase RPC is not reached, handle through demo state
+
+    if (error) {
+      console.warn("RPC rpc_issue_transfer error:", error.message || error);
+    }
+  } catch (err: any) {
+    console.warn("Error invoking rpc_issue_transfer:", err?.message || err);
   }
 
-  // Demo Fallback implementation
+  // Demo Fallback implementation: Guardar también en base de datos si la tabla documents está disponible
   const branches = await getBranches();
   const locations = await getLocations();
   const allItems = await getItemsCatalog();
@@ -71,11 +75,12 @@ export const issueTransferAction = async (
   const branch = branches.find((b) => b.id === originLoc?.branch_id) || branches[0];
 
   const docNumber = `TRF-${branch.code}-${String(
-    demoTransfers.length + 15
+    demoTransfers.length + 16
   ).padStart(6, "0")}`;
 
+  const newDocId = `doc-${Date.now()}`;
   const newDoc: DocumentWithDetails = {
-    id: `doc-${Date.now()}`,
+    id: newDocId,
     document_type: "transfer",
     document_number: docNumber,
     branch_id: branch.id,
@@ -100,7 +105,7 @@ export const issueTransferAction = async (
     destination_location: destLoc || null,
     lines: lines.map((l, index) => ({
       id: `line-${Date.now()}-${index}`,
-      document_id: `doc-${Date.now()}`,
+      document_id: newDocId,
       item_id: l.item_id,
       quantity: l.quantity,
       received_quantity: null,
@@ -111,6 +116,36 @@ export const issueTransferAction = async (
       item: allItems.find((i) => i.id === l.item_id) || allItems[0],
     })),
   };
+
+  // Intentar persistir directamente en documents y document_lines si Supabase está activo
+  try {
+    const supabase = await createClient();
+    const { error: insertDocError } = await (supabase.from("documents") as any).insert({
+      id: newDoc.id,
+      document_type: "transfer",
+      document_number: docNumber,
+      branch_id: branch.id,
+      origin_location_id,
+      destination_location_id,
+      status: "PENDING",
+      notes: notes || null,
+      created_by: profile.id,
+    });
+
+    if (!insertDocError) {
+      const lineRows = lines.map((l, index) => ({
+        id: `line-${Date.now()}-${index}`,
+        document_id: newDoc.id,
+        item_id: l.item_id,
+        quantity: l.quantity,
+        serial_unit_id: l.serial_unit_id || null,
+        notes: l.notes || null,
+      }));
+      await (supabase.from("document_lines") as any).insert(lineRows);
+    }
+  } catch {
+    // Si la inserción directa falla por RLS o conexión, se mantiene en demoTransfers
+  }
 
   demoTransfers = [newDoc, ...demoTransfers];
 
@@ -186,6 +221,8 @@ export const acceptTransferAction = async (
 export const getTransfersList = async (
   filterBranchId?: string
 ): Promise<DocumentWithDetails[]> => {
+  let dbTransfers: DocumentWithDetails[] = [];
+
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -206,20 +243,32 @@ export const getTransfersList = async (
       .eq("document_type", "transfer")
       .order("created_at", { ascending: false });
 
-    if (!error && data && data.length > 0) {
-      return data as unknown as DocumentWithDetails[];
+    if (!error && data) {
+      dbTransfers = data as unknown as DocumentWithDetails[];
     }
   } catch {
     // Demo fallback
   }
 
+  // Combinar registros de base de datos con cualquier documento emitido en la sesión
+  const combinedMap = new Map<string, DocumentWithDetails>();
+  
+  // Agregar primero las de demo/sesión
+  demoTransfers.forEach((d) => combinedMap.set(d.id, d));
+  // Agregar las de BD (si ya existen las actualiza)
+  dbTransfers.forEach((d) => combinedMap.set(d.id, d));
+
+  const allTransfers = Array.from(combinedMap.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   if (filterBranchId) {
-    return demoTransfers.filter(
+    return allTransfers.filter(
       (d) =>
         d.branch_id === filterBranchId ||
         d.destination_location?.branch_id === filterBranchId
     );
   }
 
-  return demoTransfers;
+  return allTransfers;
 };

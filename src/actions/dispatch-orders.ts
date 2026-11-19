@@ -18,7 +18,7 @@ let demoDispatchOrders: DocumentWithDetails[] = [
     document_number: "SAL-CCS-000101",
     delivery_note_number: "NE-ALM-CCS-20261118-4521",
     branch_id: "b0000000-0000-0000-0000-000000000001",
-    origin_location_id: "a0000000-0000-0000-0000-000000000001",
+    origin_location_id: "l0000000-0000-0000-0000-000000000001",
     destination_location_id: null,
     status: "APPROVED",
     ticket_ref: "CLI-99420",
@@ -63,7 +63,7 @@ let demoDispatchOrders: DocumentWithDetails[] = [
       updated_at: new Date().toISOString(),
     },
     origin_location: {
-      id: "a0000000-0000-0000-0000-000000000001",
+      id: "l0000000-0000-0000-0000-000000000001",
       branch_id: "b0000000-0000-0000-0000-000000000001",
       code: "ALM-CCS",
       name: "Almacén Central Caracas",
@@ -265,6 +265,8 @@ export const getDispatchOrdersHistory = async (
   branchId?: string,
   locationId?: string
 ): Promise<DocumentWithDetails[]> => {
+  let dbDocs: DocumentWithDetails[] = [];
+
   try {
     const supabase = await createClient();
     let query = supabase
@@ -291,19 +293,27 @@ export const getDispatchOrdersHistory = async (
     }
 
     const { data, error } = await query;
-    if (!error && data && data.length > 0) {
-      return data as unknown as DocumentWithDetails[];
+    if (!error && data) {
+      dbDocs = data as unknown as DocumentWithDetails[];
     }
   } catch {
     // Demo fallback
   }
 
+  const combinedMap = new Map<string, DocumentWithDetails>();
+  demoDispatchOrders.forEach((d) => combinedMap.set(d.id, d));
+  dbDocs.forEach((d) => combinedMap.set(d.id, d));
+
+  const allOrders = Array.from(combinedMap.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   if (locationId) {
-    return demoDispatchOrders.filter((d) => d.origin_location_id === locationId);
+    return allOrders.filter((d) => d.origin_location_id === locationId);
   }
   if (branchId) {
-    return demoDispatchOrders.filter((d) => d.branch_id === branchId);
+    return allOrders.filter((d) => d.branch_id === branchId);
   }
 
-  return demoDispatchOrders;
+  return allOrders;
 };

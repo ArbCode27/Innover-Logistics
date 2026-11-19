@@ -114,6 +114,8 @@ export const getConsumptionsList = async (
   branchId?: string,
   crewLocationId?: string
 ): Promise<DocumentWithDetails[]> => {
+  let dbDocs: DocumentWithDetails[] = [];
+
   try {
     const supabase = await createClient();
     let query = supabase
@@ -140,21 +142,29 @@ export const getConsumptionsList = async (
     }
 
     const { data, error } = await query;
-    if (!error && data && data.length > 0) {
-      return data as unknown as DocumentWithDetails[];
+    if (!error && data) {
+      dbDocs = data as unknown as DocumentWithDetails[];
     }
   } catch {
     // Demo fallback
   }
 
+  const combinedMap = new Map<string, DocumentWithDetails>();
+  demoConsumptions.forEach((d) => combinedMap.set(d.id, d));
+  dbDocs.forEach((d) => combinedMap.set(d.id, d));
+
+  const allConsumptions = Array.from(combinedMap.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   if (crewLocationId) {
-    return demoConsumptions.filter(
+    return allConsumptions.filter(
       (d) => d.origin_location_id === crewLocationId
     );
   }
   if (branchId) {
-    return demoConsumptions.filter((d) => d.branch_id === branchId);
+    return allConsumptions.filter((d) => d.branch_id === branchId);
   }
 
-  return demoConsumptions;
+  return allConsumptions;
 };
