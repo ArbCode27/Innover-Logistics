@@ -9,7 +9,7 @@ export const terms = {
   code: "Código",
   warehouse: "Almacén",
   warehouses: "Almacenes",
-  crew: "Cuadrilla",
+  crew: "Almacen",
   crews: "Cuadrillas",
   technician: "Técnico",
   technicians: "Técnicos",
@@ -113,7 +113,10 @@ export const hints = {
   fixFields: "Revisa los campos marcados e inténtalo de nuevo.",
 } as const;
 
-export const explainError = (action: string, detail?: string | null): string => {
+export const explainError = (
+  action: string,
+  detail?: string | null,
+): string => {
   const base = `No se pudo ${action}. ${hints.fixFields}`;
   if (!detail) return base;
   return `${base} Detalle: ${detail}`;

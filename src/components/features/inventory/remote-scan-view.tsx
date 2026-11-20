@@ -153,15 +153,16 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
   // Reproducir sonido sutil de escaneo
   const playScanBeep = React.useCallback(() => {
     try {
-      const audioCtx = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      const audioCtx = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
       osc.frequency.exponentialRampToValueAtTime(
         1320,
-        audioCtx.currentTime + 0.12
+        audioCtx.currentTime + 0.12,
       );
       gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
@@ -177,7 +178,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
   // Aplicar datos extraídos por la lectura óptica
   const handleApplyExtractedData = (
     data: ExtractedLabelData,
-    imageUrl?: string
+    imageUrl?: string,
   ) => {
     setExtractedData(data);
 
@@ -189,7 +190,10 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
           : []
     )
       .map((serial) => serial.trim().toUpperCase())
-      .filter((serial, index, list) => serial.length > 0 && list.indexOf(serial) === index);
+      .filter(
+        (serial, index, list) =>
+          serial.length > 0 && list.indexOf(serial) === index,
+      );
     const isSheet = detectedSerials.length > 1;
 
     setSheetSerials(isSheet ? detectedSerials : []);
@@ -212,16 +216,17 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       toast.info(
         isSheet
           ? `${detectedSerials.length} seriales de "${data.suggested_name}". Cada uno se registra como 1 unidad.`
-          : `Producto identificado en catálogo: ${data.suggested_name}`
+          : `Producto identificado en catálogo: ${data.suggested_name}`,
       );
     } else if (isSheet) {
       setIsNewItemMode(false);
       toast.success(
-        `Hoja con ${detectedSerials.length} seriales. Elige el producto (por ejemplo ONU Lanly doble banda) y guarda los ${detectedSerials.length} equipos.`
+        `Hoja con ${detectedSerials.length} seriales. Elige el producto (por ejemplo ONU Lanly doble banda) y guarda los ${detectedSerials.length} equipos.`,
       );
     } else {
       // No existe en catálogo
-      const isAdmin = userRole === "superadmin" || userRole === "admin_sucursal";
+      const isAdmin =
+        userRole === "superadmin" || userRole === "admin_sucursal";
 
       if (isAdmin) {
         setIsNewItemMode(true);
@@ -231,12 +236,12 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         setNewItemCategory(data.category || "Equipos Activos");
         setIsSkuConfirmed(false); // Requiere confirmación obligatoria
         toast.warning(
-          "Este producto no está en la lista. Completa el nombre y confirma el código antes de guardar."
+          "Este producto no está en la lista. Completa el nombre y confirma el código antes de guardar.",
         );
       } else {
         setIsNewItemMode(false);
         toast.error(
-          "El modelo no existe en catálogo. Como técnico, debes vincularlo a un producto existente o solicitar el alta a un administrador."
+          "El modelo no existe en catálogo. Como técnico, debes vincularlo a un producto existente o solicitar el alta a un administrador.",
         );
       }
     }
@@ -247,7 +252,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       checkSerialAndMacDuplicate(
         targetItem,
         detectedSerials[0],
-        data.mac_address
+        data.mac_address,
       ).then((res) => {
         setIsDuplicateSerial(res.isSerialDuplicate);
         setIsDuplicateMac(res.isMacDuplicate);
@@ -349,7 +354,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
             if (data.latestCapture.data) {
               handleApplyRef.current(
                 data.latestCapture.data,
-                data.latestCapture.imageUrl
+                data.latestCapture.imageUrl,
               );
               playScanBeep();
             }
@@ -384,11 +389,15 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
     if (isNewItemMode) {
       if (!isSkuConfirmed) {
-        toast.error("Confirma el código del producto antes de guardar. Si está vacío, escríbelo.");
+        toast.error(
+          "Confirma el código del producto antes de guardar. Si está vacío, escríbelo.",
+        );
         return;
       }
       if (!newItemName.trim() || !newItemSku.trim()) {
-        toast.error("Escribe el nombre y el código. Los dos son obligatorios para un producto nuevo.");
+        toast.error(
+          "Escribe el nombre y el código. Los dos son obligatorios para un producto nuevo.",
+        );
         return;
       }
     } else {
@@ -399,11 +408,15 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     }
 
     const serialsToSave = (
-      sheetSerials.length > 1 ? sheetSerials : [serialNumber.trim().toUpperCase()]
+      sheetSerials.length > 1
+        ? sheetSerials
+        : [serialNumber.trim().toUpperCase()]
     ).filter(Boolean);
 
     if (serialsToSave.length === 0) {
-      toast.error("El número de serie es obligatorio. Escríbelo o tómale una foto más clara.");
+      toast.error(
+        "El número de serie es obligatorio. Escríbelo o tómale una foto más clara.",
+      );
       return;
     }
 
@@ -415,7 +428,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     setIsSubmitting(true);
 
     const knownDuplicates = new Set(
-      (extractedData?.duplicate_serials || []).map((serial) => serial.trim().toUpperCase())
+      (extractedData?.duplicate_serials || []).map((serial) =>
+        serial.trim().toUpperCase(),
+      ),
     );
     let activeItemId = isNewItemMode ? undefined : selectedItemId;
     let createdNewItem = false;
@@ -436,7 +451,10 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
           location_id: selectedLocationId,
           quantity: 1,
           serial_number: serial,
-          mac_address: serialsToSave.length === 1 ? macAddress.trim() || undefined : undefined,
+          mac_address:
+            serialsToSave.length === 1
+              ? macAddress.trim() || undefined
+              : undefined,
           ticket_ref: ticketRef.trim() || undefined,
           supplier_notes: supplierNotes.trim() || undefined,
           image_url: capturedImage || undefined,
@@ -477,11 +495,13 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
         return;
       }
 
-      const productLabel = isNewItemMode ? newItemName.trim() : currentSelectedItem?.name || "equipo";
+      const productLabel = isNewItemMode
+        ? newItemName.trim()
+        : currentSelectedItem?.name || "equipo";
       toast.success(
         serialsToSave.length > 1
           ? `Registradas ${saved} unidades de "${productLabel}".${skipped ? ` ${skipped} ya existían.` : ""}`
-          : "Ingreso registrado correctamente"
+          : "Ingreso registrado correctamente",
       );
 
       if (channelRef.current) {
@@ -546,7 +566,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
             <span>Recepción con teléfono</span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            Toma la foto con el teléfono. El número de serie y la dirección MAC se guardan juntos.
+            Toma la foto con el teléfono. El número de serie y la dirección MAC
+            se guardan juntos.
           </p>
         </div>
 
@@ -557,7 +578,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
               <span>Teléfono Vinculado</span>
             </Badge>
           ) : (
-            <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1 text-amber-600 dark:text-amber-400 border-amber-500/30">
+            <Badge
+              variant="outline"
+              className="flex items-center gap-1.5 px-3 py-1 text-amber-600 dark:text-amber-400 border-amber-500/30">
               <WifiOff className="h-3.5 w-3.5" />
               <span>Esperando teléfono</span>
             </Badge>
@@ -569,21 +592,21 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Panel izquierdo: QR de emparejamiento y Vista previa de captura */}
         <div className="lg:col-span-5 space-y-6">
-          {!isConnected && !capturedImage || forceShowQr ? (
+          {(!isConnected && !capturedImage) || forceShowQr ? (
             /* Tarjeta de Código QR */
             <Card className="border-primary/20 shadow-sm">
               <CardHeader className="text-center pb-2">
                 {isConnected && (
                   <div className="flex items-center justify-between p-2 mb-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs">
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
-                      <Wifi className="h-3.5 w-3.5 animate-pulse" /> Teléfono vinculado
+                      <Wifi className="h-3.5 w-3.5 animate-pulse" /> Teléfono
+                      vinculado
                     </span>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => setForceShowQr(false)}
-                      className="h-7 text-xs gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
-                    >
+                      className="h-7 text-xs gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
                       <Camera className="h-3.5 w-3.5" /> Ver Cámara
                     </Button>
                   </div>
@@ -593,7 +616,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   <span>Vincular Cámara del Teléfono</span>
                 </CardTitle>
                 <CardDescription>
-                  Escanee con la cámara de su teléfono móvil (sin necesidad de iniciar sesión).
+                  Escanee con la cámara de su teléfono móvil (sin necesidad de
+                  iniciar sesión).
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center justify-center p-6 space-y-4">
@@ -626,8 +650,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={handleCopyLink}
-                      className="h-9 px-3"
-                    >
+                      className="h-9 px-3">
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
@@ -640,12 +663,13 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => setForceShowQr(false)}
-                    className="h-7 text-xs text-primary gap-1"
-                  >
+                    className="h-7 text-xs text-primary gap-1">
                     <Camera className="h-3.5 w-3.5" /> Volver a Captura
                   </Button>
                 ) : (
-                  <span className="font-mono text-[11px]">Válido por 4 horas</span>
+                  <span className="font-mono text-[11px]">
+                    Válido por 4 horas
+                  </span>
                 )}
               </CardFooter>
             </Card>
@@ -662,8 +686,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     {isProcessingCapture
                       ? "Procesando lectura óptica de la etiqueta..."
                       : capturedImage
-                      ? "Última etiqueta capturada desde el móvil"
-                      : "Esperando captura desde el teléfono"}
+                        ? "Última etiqueta capturada desde el móvil"
+                        : "Esperando captura desde el teléfono"}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -679,8 +703,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     size="sm"
                     onClick={() => setForceShowQr(true)}
                     className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-foreground"
-                    title="Ver código QR de vinculación"
-                  >
+                    title="Ver código QR de vinculación">
                     <QrCode className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Ver QR</span>
                   </Button>
@@ -723,7 +746,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                           Cámara vinculada y lista
                         </p>
                         <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-                          Apunta la cámara del móvil a la etiqueta del equipo y pulsa &quot;Capturar Etiqueta&quot; en el teléfono.
+                          Apunta la cámara del móvil a la etiqueta del equipo y
+                          pulsa &quot;Capturar Etiqueta&quot; en el teléfono.
                         </p>
                       </div>
                     </div>
@@ -742,13 +766,19 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                 {/* Foto única de catálogo (Regla: 1 foto por tipo de producto) */}
                 <div className="p-3 bg-muted/50 rounded-lg border space-y-1">
                   <div className="flex items-center justify-between text-xs font-medium">
-                    <span className="text-muted-foreground">Foto de Catálogo (1 por tipo):</span>
+                    <span className="text-muted-foreground">
+                      Foto de Catálogo (1 por tipo):
+                    </span>
                     {currentSelectedItem?.image_url ? (
-                      <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] text-emerald-600 border-emerald-500/30">
                         Foto registrada
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] text-amber-600 border-amber-500/30">
                         Se asignará esta captura
                       </Badge>
                     )}
@@ -776,10 +806,13 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     </div>
                     <div className="text-xs">
                       <p className="font-medium text-foreground">
-                        {currentSelectedItem?.name || newItemName || "Sin producto seleccionado"}
+                        {currentSelectedItem?.name ||
+                          newItemName ||
+                          "Sin producto seleccionado"}
                       </p>
                       <p className="text-muted-foreground text-[11px]">
-                        Código: {currentSelectedItem?.sku || newItemSku || "Sin código"}
+                        Código:{" "}
+                        {currentSelectedItem?.sku || newItemSku || "Sin código"}
                       </p>
                     </div>
                   </div>
@@ -792,8 +825,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={() => setForceShowQr(true)}
-                  className="h-7 text-xs gap-1"
-                >
+                  className="h-7 text-xs gap-1">
                   <QrCode className="h-3 w-3" /> Ver Código QR
                 </Button>
               </CardFooter>
@@ -803,12 +835,25 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
           {/* Tarjeta de guía operativa */}
           <Card className="bg-muted/30 border-dashed">
             <CardContent className="p-4 space-y-2 text-xs text-muted-foreground">
-              <p className="font-semibold text-foreground">Reglas de Recepción Activa:</p>
+              <p className="font-semibold text-foreground">
+                Reglas de Recepción Activa:
+              </p>
               <ul className="list-disc pl-4 space-y-1">
-                <li>El registro se contabiliza contablemente como <strong>Compra (COM)</strong>.</li>
-                <li>Serial y MAC se vinculan de forma atómica en el inventario.</li>
-                <li>Cada tipo de equipo mantiene una sola imagen oficial en catálogo.</li>
-                <li>Altas de nuevos productos restringidas a Superadmin y Admin Sucursal.</li>
+                <li>
+                  El registro se contabiliza contablemente como{" "}
+                  <strong>Compra (COM)</strong>.
+                </li>
+                <li>
+                  Serial y MAC se vinculan de forma atómica en el inventario.
+                </li>
+                <li>
+                  Cada tipo de equipo mantiene una sola imagen oficial en
+                  catálogo.
+                </li>
+                <li>
+                  Altas de nuevos productos restringidas a Superadmin y Admin
+                  Sucursal.
+                </li>
               </ul>
             </CardContent>
           </Card>
@@ -825,7 +870,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     <span>Entrada de Mercancía (Compra / Recepción)</span>
                   </CardTitle>
                   <CardDescription>
-                    Los campos se completan automáticamente tras la captura de la etiqueta.
+                    Los campos se completan automáticamente tras la captura de
+                    la etiqueta.
                   </CardDescription>
                 </div>
                 <Badge variant="outline" className="font-mono text-xs">
@@ -837,20 +883,22 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
             <CardContent className="space-y-5">
               {/* Ubicación de Destino (Por defecto del perfil) */}
               <div className="space-y-2">
-                <Label htmlFor="location-select" className="text-xs font-semibold">
+                <Label
+                  htmlFor="location-select"
+                  className="text-xs font-semibold">
                   Ubicación de Destino (Almacén o Cuadrilla)
                 </Label>
                 <Select
                   value={selectedLocationId}
-                  onValueChange={setSelectedLocationId}
-                >
+                  onValueChange={setSelectedLocationId}>
                   <SelectTrigger id="location-select" className="h-10">
                     <SelectValue placeholder="Seleccione almacén" />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((loc) => (
                       <SelectItem key={loc.id} value={loc.id}>
-                        {loc.name} ({loc.code}) — {loc.type === "crew" ? "Cuadrilla" : "Almacén"}
+                        {loc.name} ({loc.code}) —{" "}
+                        {loc.type === "crew" ? "Cuadrilla" : "Almacén"}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -867,7 +915,8 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   </Label>
 
                   {/* Toggle para Administradores: Alta de Nuevo Producto */}
-                  {(userRole === "superadmin" || userRole === "admin_sucursal") && (
+                  {(userRole === "superadmin" ||
+                    userRole === "admin_sucursal") && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -876,14 +925,13 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                         setIsNewItemMode(!isNewItemMode);
                         setIsSkuConfirmed(false);
                       }}
-                      className="h-7 text-xs text-primary"
-                    >
+                      className="h-7 text-xs text-primary">
                       {isNewItemMode ? (
                         <span>Seleccionar existente</span>
                       ) : (
                         <span className="flex items-center gap-1">
                           <Plus className="h-3.5 w-3.5" />
-                          <span>Dar de alta producto nuevo</span>
+                          <span>Crear nuevo producto</span>
                         </span>
                       )}
                     </Button>
@@ -913,16 +961,23 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                         <Label className="text-[11px]">Categoría</Label>
                         <Select
                           value={newItemCategory}
-                          onValueChange={setNewItemCategory}
-                        >
+                          onValueChange={setNewItemCategory}>
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Equipos Activos">Equipos Activos</SelectItem>
-                            <SelectItem value="Fibra Óptica">Fibra Óptica</SelectItem>
-                            <SelectItem value="Ferretería y Pasivos">Ferretería y Pasivos</SelectItem>
-                            <SelectItem value="Herramientas">Herramientas</SelectItem>
+                            <SelectItem value="Equipos Activos">
+                              Equipos Activos
+                            </SelectItem>
+                            <SelectItem value="Fibra Óptica">
+                              Fibra Óptica
+                            </SelectItem>
+                            <SelectItem value="Ferretería y Pasivos">
+                              Ferretería y Pasivos
+                            </SelectItem>
+                            <SelectItem value="Herramientas">
+                              Herramientas
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -939,7 +994,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                             Código confirmado
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-amber-600 border-amber-500/30">
                             Confirmación Requerida
                           </Badge>
                         )}
@@ -961,14 +1018,15 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                           variant={isSkuConfirmed ? "secondary" : "default"}
                           onClick={() => {
                             if (!newItemSku.trim()) {
-                              toast.error("El código no puede quedar vacío. Escríbelo y confírmalo.");
+                              toast.error(
+                                "El código no puede quedar vacío. Escríbelo y confírmalo.",
+                              );
                               return;
                             }
                             setIsSkuConfirmed(true);
                             toast.success("Código confirmado");
                           }}
-                          className="h-9 text-xs px-3"
-                        >
+                          className="h-9 text-xs px-3">
                           <Check className="h-4 w-4 mr-1" />
                           <span>Confirmar</span>
                         </Button>
@@ -984,15 +1042,16 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                         setSelectedItemId(val);
                         // Comprobar duplicado para el ítem seleccionado
                         if (serialNumber) {
-                          checkSerialAndMacDuplicate(val, serialNumber, macAddress).then(
-                            (res) => {
-                              setIsDuplicateSerial(res.isSerialDuplicate);
-                              setIsDuplicateMac(res.isMacDuplicate);
-                            }
-                          );
+                          checkSerialAndMacDuplicate(
+                            val,
+                            serialNumber,
+                            macAddress,
+                          ).then((res) => {
+                            setIsDuplicateSerial(res.isSerialDuplicate);
+                            setIsDuplicateMac(res.isMacDuplicate);
+                          });
                         }
-                      }}
-                    >
+                      }}>
                       <SelectTrigger className="h-10">
                         <SelectValue placeholder="Seleccione o escanee equipo..." />
                       </SelectTrigger>
@@ -1012,7 +1071,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg border bg-muted/20">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="serial-input" className="text-xs font-semibold flex items-center gap-1.5">
+                    <Label
+                      htmlFor="serial-input"
+                      className="text-xs font-semibold flex items-center gap-1.5">
                       <Cpu className="h-3.5 w-3.5 text-primary" />
                       <span>Número de Serie (SN)</span>
                     </Label>
@@ -1024,7 +1085,11 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   </div>
                   <Input
                     id="serial-input"
-                    value={sheetSerials.length > 1 ? `${sheetSerials.length} seriales de la hoja` : serialNumber}
+                    value={
+                      sheetSerials.length > 1
+                        ? `${sheetSerials.length} seriales de la hoja`
+                        : serialNumber
+                    }
                     onChange={(e) => {
                       if (sheetSerials.length > 1) return;
                       setSerialNumber(e.target.value);
@@ -1033,7 +1098,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                     readOnly={sheetSerials.length > 1}
                     placeholder="Ej: 48575443A1B2C3D4"
                     className={`h-10 font-mono text-xs uppercase ${
-                      isDuplicateSerial ? "border-red-500 focus-visible:ring-red-500" : ""
+                      isDuplicateSerial
+                        ? "border-red-500 focus-visible:ring-red-500"
+                        : ""
                     }`}
                   />
                   {sheetSerials.length > 1 && (
@@ -1043,7 +1110,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                       </p>
                       <ul className="grid grid-cols-2 gap-1">
                         {sheetSerials.map((serial) => (
-                          <li key={serial} className="font-mono text-[11px] text-foreground">
+                          <li
+                            key={serial}
+                            className="font-mono text-[11px] text-foreground">
                             {serial}
                           </li>
                         ))}
@@ -1054,7 +1123,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="mac-input" className="text-xs font-semibold flex items-center gap-1.5">
+                    <Label
+                      htmlFor="mac-input"
+                      className="text-xs font-semibold flex items-center gap-1.5">
                       <Wifi className="h-3.5 w-3.5 text-primary" />
                       <span>Dirección MAC (Opcional)</span>
                     </Label>
@@ -1113,7 +1184,9 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   checked={continuousMode}
                   onCheckedChange={(checked) => setContinuousMode(!!checked)}
                 />
-                <span>Modo continuo (mantener sesión lista para siguiente equipo)</span>
+                <span>
+                  Modo continuo (mantener sesión lista para siguiente equipo)
+                </span>
               </label>
 
               <Button
@@ -1125,8 +1198,7 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
                   (isNewItemMode && !isSkuConfirmed)
                 }
                 onClick={handleSavePurchase}
-                className="w-full sm:w-auto px-6 h-11 text-sm font-semibold flex items-center gap-2"
-              >
+                className="w-full sm:w-auto px-6 h-11 text-sm font-semibold flex items-center gap-2">
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />

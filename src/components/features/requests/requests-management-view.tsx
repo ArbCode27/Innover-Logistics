@@ -66,9 +66,18 @@ import { RequiredMark } from "@/components/shared/required-mark";
 import { EmptyState } from "@/components/features/inventory/design-system/empty-state";
 import { buttons, explainError, hints, nav, terms } from "@/lib/glossary";
 import { usePagedList } from "@/lib/use-paged-list";
-import { clearFormDraft, readFormDraft, useFormDraft } from "@/lib/use-form-draft";
+import {
+  clearFormDraft,
+  readFormDraft,
+  useFormDraft,
+} from "@/lib/use-form-draft";
 import { formatNumber } from "@/lib/utils";
-import type { Item, Location, RequestStatus, UserRole } from "@/types/inventory";
+import type {
+  Item,
+  Location,
+  RequestStatus,
+  UserRole,
+} from "@/types/inventory";
 
 interface RequestsManagementViewProps {
   requests: MaterialRequestWithDetails[];
@@ -90,7 +99,9 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
   initialProductId,
 }) => {
   const router = useRouter();
-  const [isModalOpen, setIsModalOpen] = React.useState<boolean>(Boolean(initialProductId));
+  const [isModalOpen, setIsModalOpen] = React.useState<boolean>(
+    Boolean(initialProductId),
+  );
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [pendingAction, setPendingAction] = React.useState<{
@@ -128,7 +139,11 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
     restoredDraft.current = true;
     const saved = readFormDraft<MaterialRequestInput>("draft:pedido");
     if (!saved?.item_id) return;
-    reset({ ...saved, branch_id: userBranchId, quantity: Number(saved.quantity) || 1 });
+    reset({
+      ...saved,
+      branch_id: userBranchId,
+      quantity: Number(saved.quantity) || 1,
+    });
   }, [initialProductId, reset, userBranchId]);
 
   React.useEffect(() => {
@@ -164,7 +179,7 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
 
   const handleUpdateStatus = async (
     requestId: string,
-    status: RequestStatus
+    status: RequestStatus,
   ): Promise<void> => {
     try {
       const res = await updateRequestStatusAction(requestId, status);
@@ -177,12 +192,14 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
         status === "APPROVED"
           ? "Pedido aprobado"
           : status === "DELIVERED"
-          ? "Pedido entregado"
-          : "Pedido rechazado"
+            ? "Pedido entregado"
+            : "Pedido rechazado",
       );
       router.refresh();
     } catch {
-      toast.error(explainError("actualizar el pedido"), { description: hints.connection });
+      toast.error(explainError("actualizar el pedido"), {
+        description: hints.connection,
+      });
     }
   };
 
@@ -207,7 +224,9 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
         title={nav.requests}
         description="Pide productos para una cuadrilla. El administrador aprueba y luego entrega."
         action={
-          <Button onClick={() => setIsModalOpen(true)} className="gap-2 font-semibold">
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="gap-2 font-semibold">
             <Plus className="h-4 w-4" />
             {buttons.newRequest}
           </Button>
@@ -231,7 +250,9 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
               <TableHead>Solicitante / Cuadrilla</TableHead>
               <TableHead>Material Requerido</TableHead>
               <TableHead className="text-right">Cantidad</TableHead>
-              <TableHead className="hidden md:table-cell">Orden de trabajo</TableHead>
+              <TableHead className="hidden md:table-cell">
+                Orden de trabajo
+              </TableHead>
               <TableHead className="text-center">Estado</TableHead>
               {canApprove && (
                 <TableHead className="text-center w-[160px]">
@@ -303,8 +324,7 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
                               handleUpdateStatus(req.id, "APPROVED")
                             }
                             className="h-8 text-xs text-emerald-600 hover:text-emerald-700 min-h-[36px]"
-                            title="Aprobar solicitud"
-                          >
+                            title="Aprobar solicitud">
                             <CheckCircle2 className="h-4 w-4 mr-1" />
                             {buttons.approve}
                           </Button>
@@ -312,12 +332,14 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
                             size="sm"
                             variant="ghost"
                             onClick={() =>
-                              setPendingAction({ id: req.id, status: "REJECTED" })
+                              setPendingAction({
+                                id: req.id,
+                                status: "REJECTED",
+                              })
                             }
                             className="h-8 text-xs text-destructive hover:text-destructive min-h-[36px]"
                             aria-label={buttons.rejectRequest}
-                            title={buttons.rejectRequest}
-                          >
+                            title={buttons.rejectRequest}>
                             <XCircle className="h-4 w-4" />
                           </Button>
                         </div>
@@ -326,9 +348,13 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
                       {req.status === "APPROVED" && (
                         <Button
                           size="sm"
-                          onClick={() => setPendingAction({ id: req.id, status: "DELIVERED" })}
-                          className="h-8 text-xs gap-1 bg-primary text-primary-foreground min-h-[36px]"
-                        >
+                          onClick={() =>
+                            setPendingAction({
+                              id: req.id,
+                              status: "DELIVERED",
+                            })
+                          }
+                          className="h-8 text-xs gap-1 bg-primary text-primary-foreground min-h-[36px]">
                           <PackageCheck className="h-3.5 w-3.5" />
                           {buttons.deliver}
                         </Button>
@@ -346,7 +372,12 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
             )}
           </TableBody>
         </Table>
-        <ListPager page={pager.page} pageCount={pager.pageCount} total={pager.total} onPage={pager.setPage} />
+        <ListPager
+          page={pager.page}
+          pageCount={pager.pageCount}
+          total={pager.total}
+          onPage={pager.setPage}
+        />
       </Card>
 
       {/* New Request Modal Dialog */}
@@ -357,22 +388,21 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
               <FileQuestion className="h-5 w-5 text-primary" />
               {buttons.newRequest}
             </DialogTitle>
-            <DialogDescription>
-              El administrador de la sede lo revisa. Los campos con * son obligatorios. Lo que escribas se guarda en este navegador hasta que crees el pedido.
-            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 my-2">
             <div className="space-y-1.5">
-              <Label htmlFor="crew_location_id">{terms.crew}<RequiredMark /></Label>
+              <Label htmlFor="crew_location_id">
+                {terms.crew}
+                <RequiredMark />
+              </Label>
               <Select
                 value={watch("crew_location_id")}
                 onValueChange={(val) =>
                   setValue("crew_location_id", val, { shouldValidate: true })
-                }
-              >
+                }>
                 <SelectTrigger id="crew_location_id" className="min-h-[44px]">
-                  <SelectValue placeholder="Seleccione cuadrilla" />
+                  <SelectValue placeholder="Seleccione almacen" />
                 </SelectTrigger>
                 <SelectContent>
                   {crews.map((c) => (
@@ -385,13 +415,15 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="item_id">{terms.product}<RequiredMark /></Label>
+              <Label htmlFor="item_id">
+                {terms.product}
+                <RequiredMark />
+              </Label>
               <Select
                 value={watch("item_id")}
                 onValueChange={(val) =>
                   setValue("item_id", val, { shouldValidate: true })
-                }
-              >
+                }>
                 <SelectTrigger id="item_id" className="min-h-[44px]">
                   <SelectValue placeholder="Seleccione material" />
                 </SelectTrigger>
@@ -407,7 +439,10 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="quantity">{terms.quantity}<RequiredMark /></Label>
+                <Label htmlFor="quantity">
+                  {terms.quantity}
+                  <RequiredMark />
+                </Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -424,7 +459,9 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="ticket_ref">Orden de trabajo ({hints.optional})</Label>
+                <Label htmlFor="ticket_ref">
+                  Orden de trabajo ({hints.optional})
+                </Label>
                 <Input
                   id="ticket_ref"
                   placeholder="Ej. OT-90214"
@@ -449,15 +486,13 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
                 type="button"
                 variant="outline"
                 onClick={() => setIsModalOpen(false)}
-                disabled={isSubmitting}
-              >
+                disabled={isSubmitting}>
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="gap-2 font-semibold shadow-md min-h-[44px]"
-              >
+                className="gap-2 font-semibold shadow-md min-h-[44px]">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -475,14 +510,25 @@ export const RequestsManagementView: React.FC<RequestsManagementViewProps> = ({
         </DialogContent>
       </Dialog>
       <ConfirmDialog
-        open={pendingAction?.status === "REJECTED" || pendingAction?.status === "DELIVERED"}
-        title={pendingAction?.status === "DELIVERED" ? "¿Entregar este pedido?" : "¿Rechazar este pedido?"}
+        open={
+          pendingAction?.status === "REJECTED" ||
+          pendingAction?.status === "DELIVERED"
+        }
+        title={
+          pendingAction?.status === "DELIVERED"
+            ? "¿Entregar este pedido?"
+            : "¿Rechazar este pedido?"
+        }
         description={
           pendingAction?.status === "DELIVERED"
             ? "Los productos salen del almacén y quedan en la cuadrilla. Si te equivocas, anula el comprobante en el historial."
             : "El pedido queda rechazado. La cuadrilla tendrá que crear uno nuevo si todavía lo necesita."
         }
-        confirmLabel={pendingAction?.status === "DELIVERED" ? buttons.deliver : buttons.rejectRequest}
+        confirmLabel={
+          pendingAction?.status === "DELIVERED"
+            ? buttons.deliver
+            : buttons.rejectRequest
+        }
         destructive={pendingAction?.status === "REJECTED"}
         onCancel={() => setPendingAction(null)}
         onConfirm={() => {

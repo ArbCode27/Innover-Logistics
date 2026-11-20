@@ -636,13 +636,13 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Selector de Kits */}
-                    <div className="w-48">
+                    <div className="w-full sm:w-64">
                       <Select
                         onValueChange={(val) => {
                           if (val) handleApplyKit(val);
                         }}
                       >
-                        <SelectTrigger className="h-9 text-xs">
+                        <SelectTrigger className="h-11 text-xs [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate">
                           <SelectValue placeholder="Agregar kit..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -662,7 +662,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                       onClick={() => {
                         toast.info("El lector está listo. Apunta al código o al número de serie.");
                       }}
-                      className="gap-1.5 text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                      className="h-11 shrink-0 gap-1.5 text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                     >
                       <Camera className="h-3.5 w-3.5" />
                       Escanear
@@ -678,7 +678,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                           quantity: 1,
                         })
                       }
-                      className="gap-1.5 text-xs"
+                      className="h-11 shrink-0 gap-1.5 text-xs"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Agregar línea
@@ -696,11 +696,15 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                     return (
                       <div
                         key={field.id}
-                        className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/10 transition-colors"
+                        className={
+                          isSerialized
+                            ? "grid grid-cols-1 items-end gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/10 sm:grid-cols-[minmax(0,1fr)_9.5rem_14rem_2.75rem]"
+                            : "grid grid-cols-1 items-end gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/10 sm:grid-cols-[minmax(0,1fr)_9.5rem_2.75rem]"
+                        }
                       >
                         {/* Selector de producto */}
-                        <div className="flex-1 w-full space-y-1">
-                          <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <div className="min-w-0 space-y-1">
+                          <Label className="flex min-h-8 items-end text-[11px] font-bold uppercase leading-4 tracking-wider text-muted-foreground">
                             Producto / Código o Nombre
                           </Label>
                           <Select
@@ -709,7 +713,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                               setValue(`lines.${index}.item_id`, val, { shouldValidate: true })
                             }
                           >
-                            <SelectTrigger className="h-10 text-xs">
+                            <SelectTrigger className="h-11 text-xs [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate">
                               <SelectValue placeholder="Seleccione producto" />
                             </SelectTrigger>
                             <SelectContent>
@@ -723,9 +727,10 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                         </div>
 
                         {/* Cantidad */}
-                        <div className="w-full sm:w-32 space-y-1">
-                          <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Cantidad ({currentItem?.unit || "und"})
+                        <div className="space-y-1">
+                          <Label className="flex min-h-8 flex-col justify-end text-[11px] font-bold uppercase leading-4 tracking-wider text-muted-foreground">
+                            <span>Cantidad</span>
+                            <span>({currentItem?.unit || "und"})</span>
                           </Label>
                           <Input
                             type="number"
@@ -734,14 +739,14 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                             {...register(`lines.${index}.quantity` as const, {
                               valueAsNumber: true,
                             })}
-                            className="h-10 text-center font-bold"
+                            className="h-11 text-center font-bold"
                           />
                         </div>
 
                         {/* Serial si el producto es serializado */}
-                        {isSerialized && (
-                          <div className="w-full sm:w-56 space-y-1">
-                            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {isSerialized ? (
+                          <div className="min-w-0 space-y-1">
+                            <Label className="flex min-h-8 items-end text-[11px] font-bold uppercase leading-4 tracking-wider text-muted-foreground">
                               Serial / MAC
                             </Label>
                             <Select
@@ -753,7 +758,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                                 )
                               }
                             >
-                              <SelectTrigger className="h-10 text-xs">
+                              <SelectTrigger className="h-11 text-xs [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate">
                                 <SelectValue placeholder="Asignar en almacén..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -770,22 +775,20 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                               </SelectContent>
                             </Select>
                           </div>
-                        )}
+                        ) : null}
 
                         {/* Botón eliminar fila */}
-                        <div className="self-end sm:self-center pt-2 sm:pt-4">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => remove(index)}
-                            disabled={fields.length === 1}
-                            className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                            aria-label="Eliminar producto"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => remove(index)}
+                          disabled={fields.length === 1}
+                          className="h-11 w-11 shrink-0 justify-self-end text-muted-foreground hover:text-destructive"
+                          aria-label="Eliminar producto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     );
                   })}

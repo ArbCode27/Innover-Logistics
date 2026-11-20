@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createBranchAction, createItemAction, updateItemAction } from "@/actions/admin";
+import { createBranchAction, createItemAction, updateItemAction, type StaffProfile } from "@/actions/admin";
+import { StaffUsersPanel } from "@/components/features/admin/staff-users-panel";
 import { Button } from "@/components/ui/button";
 import { buttons, terms } from "@/lib/glossary";
 import { Input } from "@/components/ui/input";
@@ -57,11 +58,13 @@ import type { Branch, Item, UnitOfMeasure } from "@/types/inventory";
 interface AdminManagementViewProps {
   branches: Branch[];
   items: Item[];
+  staffProfiles: StaffProfile[];
 }
 
 export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
   branches,
   items,
+  staffProfiles,
 }) => {
   const router = useRouter();
 
@@ -231,12 +234,12 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
           Administración Global
         </h1>
         <p className="text-sm text-muted-foreground">
-          Sedes y productos. El código de un producto no se cambia después de crearlo.
+          Sedes, productos y perfiles de administrador de sede o registro de campo. El código de un producto no se cambia después de crearlo.
         </p>
       </div>
 
       <Tabs defaultValue="branches" className="space-y-4">
-        <TabsList className="grid w-full sm:w-[480px] grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3 sm:w-[640px]">
           <TabsTrigger value="branches" className="gap-2">
             <Building2 className="h-4 w-4" />
             Sucursales
@@ -244,6 +247,10 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
           <TabsTrigger value="catalog" className="gap-2">
             <Boxes className="h-4 w-4" />
             Productos
+          </TabsTrigger>
+          <TabsTrigger value="staff" className="gap-2">
+            <UserCheck className="h-4 w-4" />
+            Perfiles
           </TabsTrigger>
         </TabsList>
 
@@ -687,6 +694,10 @@ export const AdminManagementView: React.FC<AdminManagementViewProps> = ({
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="staff" className="space-y-6">
+          <StaffUsersPanel branches={branches} profiles={staffProfiles} />
         </TabsContent>
       </Tabs>
       <Dialog open={Boolean(editingItem)} onOpenChange={(open) => !open && setEditingItem(null)}>

@@ -2,9 +2,38 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
+import { formatDatabaseError } from "@/lib/utils";
+import { staffUserSchema, type StaffUserInput } from "@/lib/validators/staff-user";
 import type { ActionResult } from "@/actions/transfers";
 import type { UnitOfMeasure, UserRole } from "@/types/inventory";
+
+export interface StaffProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  role: "admin_sucursal" | "reportador";
+  branch_id: string | null;
+  is_active: boolean;
+}
+
+const explainAuthCreateError = (message: string): string => {
+  const text = message.toLowerCase();
+  if (
+    text.includes("already") ||
+    text.includes("registered") ||
+    text.includes("exists") ||
+    text.includes("duplicate")
+  ) {
+    return "Ya existe una cuenta con ese correo.";
+  }
+  if (text.includes("password")) {
+    return "La contraseña no cumple el mínimo del servidor. Usa al menos 6 caracteres.";
+  }
+  return "No se pudo crear la cuenta. Revisa el correo y la contraseña e inténtalo de nuevo.";
+};
 
 export const createBranchAction = async (data: {
   code: string;
@@ -186,4 +215,94 @@ export const updateUserRoleAction = async (
 
   revalidatePath("/admin");
   return { success: true };
+};
+
+export const getStaffProfiles = async (): Promise<StaffProfile[]> => {
+  const profile = await getCurrentProfile();
+  if (profile?.role !== "superadmin") return [];
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("profiles")
+      .select("id, email, full_name, phone, role, branch_id, is_active")
+      .in("role", ["admin_sucursal", "reportador"])
+      .order("full_name");
+
+    if (error || !data) return [];
+    return data as StaffProfile[];
+  } catch (err) {
+    console.error("Error al listar perfiles de sede:", err);
+    return [];
+  }
+};
+
+export const createStaffUserAction = async (
+  input: StaffUserInput
+): Promise<ActionResult<{ id: string }>> => {
+  const profile = await getCurrentProfile();
+  if (profile?.role !== "superadmin") {
+    return {
+      success: false,
+      error: "Solo el administrador general puede crear estos perfiles.",
+    };
+  }
+
+  const parsed = staffUserSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || "Revisa los datos del formulario.",
+    };
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const fullName = parsed.data.full_name.trim();
+  const phone = parsed.data.phone?.trim() || null;
+
+  try {
+    const admin = createAdminClient();
+    const { data: branch, error: branchError } = await admin
+      .from("branches")
+      .select("id")
+      .eq("id", parsed.data.branch_id)
+      .maybeSingle();
+
+    if (branchError || !branch) {
+      return { success: false, error: "Selecciona una sede válida." };
+    }
+
+    const { data: created, error: authError } = await admin.auth.admin.createUser({
+      email,
+      password: parsed.data.password,
+      email_confirm: true,
+    });
+
+    if (authError || !created.user) {
+      return {
+        success: false,
+        error: explainAuthCreateError(authError?.message || ""),
+      };
+    }
+
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: created.user.id,
+      email,
+      full_name: fullName,
+      phone,
+      role: parsed.data.role,
+      branch_id: parsed.data.branch_id,
+      is_active: true,
+    });
+
+    if (profileError) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      return { success: false, error: formatDatabaseError(profileError) };
+    }
+
+    revalidatePath("/admin");
+    return { success: true, data: { id: created.user.id } };
+  } catch (err) {
+    return { success: false, error: formatDatabaseError(err) };
+  }
 };
