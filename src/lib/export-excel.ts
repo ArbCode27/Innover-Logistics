@@ -1,11 +1,12 @@
-import * as XLSX from "xlsx";
 import type { DocumentWithDetails } from "@/types/inventory";
 import { formatDate } from "@/lib/utils";
 
-export const exportDeliveryNotesToExcel = (
+export const exportDeliveryNotesToExcel = async (
   documents: DocumentWithDetails[],
   fileNamePrefix: string = "Notas_de_Entrega_Innover"
-): void => {
+): Promise<void> => {
+  const xlsxModule = await import("xlsx");
+  const XLSX = xlsxModule.default ?? xlsxModule;
   if (!documents || documents.length === 0) {
     return;
   }

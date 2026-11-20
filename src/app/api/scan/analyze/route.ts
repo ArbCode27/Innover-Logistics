@@ -28,48 +28,43 @@ export const POST = async (request: NextRequest): Promise<NextResponse<ScanAnaly
     try {
       const supabase = await createClient();
       let matchedItem: any = null;
+      const itemFields = "id, name, sku, category";
 
-      // 2a. Intento 1: Coincidencia por SKU
-      if (extractedData.suggested_sku && extractedData.suggested_sku.length >= 3) {
-        const { data: bySku } = await supabase
-          .from("items")
-          .select("*")
-          .eq("is_active", true)
-          .ilike("sku", `%${extractedData.suggested_sku}%`)
-          .limit(1);
+      const skuQuery =
+        extractedData.suggested_sku && extractedData.suggested_sku.length >= 3
+          ? supabase
+              .from("items")
+              .select(itemFields)
+              .eq("is_active", true)
+              .ilike("sku", `%${extractedData.suggested_sku}%`)
+              .limit(1)
+          : Promise.resolve({ data: [] as unknown[] });
 
-        if (bySku && (bySku as any[]).length > 0) {
-          matchedItem = (bySku as any[])[0];
-        }
-      }
+      const nameQuery =
+        extractedData.suggested_name && extractedData.suggested_name.trim().length >= 3
+          ? supabase
+              .from("items")
+              .select(itemFields)
+              .eq("is_active", true)
+              .ilike("name", `%${extractedData.suggested_name.trim()}%`)
+              .limit(1)
+          : Promise.resolve({ data: [] as unknown[] });
 
-      // 2b. Intento 2: Coincidencia por nombre sugerido (ej. "ONU Lanly doble banda")
-      if (!matchedItem && extractedData.suggested_name && extractedData.suggested_name.trim().length >= 3) {
-        const { data: byName } = await supabase
-          .from("items")
-          .select("*")
-          .eq("is_active", true)
-          .ilike("name", `%${extractedData.suggested_name.trim()}%`)
-          .limit(1);
+      const modelQuery =
+        extractedData.model && extractedData.model.trim().length >= 3
+          ? supabase
+              .from("items")
+              .select(itemFields)
+              .eq("is_active", true)
+              .ilike("name", `%${extractedData.model.trim()}%`)
+              .limit(1)
+          : Promise.resolve({ data: [] as unknown[] });
 
-        if (byName && (byName as any[]).length > 0) {
-          matchedItem = (byName as any[])[0];
-        }
-      }
-
-      // 2c. Intento 3: Coincidencia por modelo en el nombre si no hubo coincidencia por SKU
-      if (!matchedItem && extractedData.model && extractedData.model.trim().length >= 3) {
-        const { data: byModel } = await supabase
-          .from("items")
-          .select("*")
-          .eq("is_active", true)
-          .ilike("name", `%${extractedData.model.trim()}%`)
-          .limit(1);
-
-        if (byModel && (byModel as any[]).length > 0) {
-          matchedItem = (byModel as any[])[0];
-        }
-      }
+      const [bySku, byName, byModel] = await Promise.all([skuQuery, nameQuery, modelQuery]);
+      const skuHit = (bySku.data as any[] | null)?.[0];
+      const nameHit = (byName.data as any[] | null)?.[0];
+      const modelHit = (byModel.data as any[] | null)?.[0];
+      matchedItem = skuHit || nameHit || modelHit || null;
 
       if (matchedItem) {
         extractedData.matched_item_id = matchedItem.id;

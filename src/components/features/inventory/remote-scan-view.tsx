@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import QRCode from "qrcode";
 import { toast } from "sonner";
 import {
   Camera,
@@ -48,7 +47,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
 import {
-  registerPurchaseAction,
+  registerPurchaseBatchAction,
   checkSerialAndMacDuplicate,
 } from "@/actions/scan";
 import type {
@@ -129,16 +128,26 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
 
   // Generar código QR
   React.useEffect(() => {
-    QRCode.toDataURL(scanUrl, {
-      width: 280,
-      margin: 1.5,
-      color: {
-        dark: "#0f172a",
-        light: "#ffffff",
-      },
-    })
-      .then(setQrCodeUrl)
+    let cancelled = false;
+    void import("qrcode")
+      .then((qrcode) => {
+        const toDataURL = qrcode.toDataURL ?? qrcode.default.toDataURL;
+        return toDataURL(scanUrl, {
+          width: 280,
+          margin: 1.5,
+          color: {
+            dark: "#0f172a",
+            light: "#ffffff",
+          },
+        });
+      })
+      .then((url) => {
+        if (!cancelled) setQrCodeUrl(url);
+      })
       .catch((err) => console.error("Error generando QR:", err));
+    return () => {
+      cancelled = true;
+    };
   }, [scanUrl]);
 
   // Reproducir sonido sutil de escaneo
@@ -415,14 +424,15 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
     let lastDocument = "";
 
     try {
+      const inputs: RegisterPurchaseInput[] = [];
+      let creatingItem = isNewItemMode && !activeItemId;
       for (const serial of serialsToSave) {
         if (knownDuplicates.has(serial)) {
           skipped += 1;
           continue;
         }
 
-        const creatingItem = isNewItemMode && !activeItemId;
-        const input: RegisterPurchaseInput = {
+        inputs.push({
           location_id: selectedLocationId,
           quantity: 1,
           serial_number: serial,
@@ -442,21 +452,25 @@ export const RemoteScanView: React.FC<RemoteScanViewProps> = ({
               }
             : undefined,
           item_id: activeItemId,
-        };
+        });
+        creatingItem = false;
+      }
 
-        const result = await registerPurchaseAction(input);
+      const results = await registerPurchaseBatchAction(inputs);
+      results.forEach((result, index) => {
+        const serial = inputs[index]?.serial_number;
         if (!result.success) {
           toast.error(result.error || `No se pudo registrar ${serial}`);
-          continue;
+          return;
         }
 
         saved += 1;
         lastDocument = result.document_number || lastDocument;
-        if (creatingItem && result.item_id) {
+        if (inputs[index]?.is_new_item && result.item_id) {
           activeItemId = result.item_id;
           createdNewItem = true;
         }
-      }
+      });
 
       if (saved === 0) {
         toast.error("No se registró ningún equipo de esta captura.");

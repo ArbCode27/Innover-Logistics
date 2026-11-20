@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
 import { getLocations, getItemsCatalog } from "@/actions/inventory";
@@ -419,6 +419,7 @@ export const registerPurchaseAction = async (
       }
 
       finalItemId = newItem.id;
+      revalidateTag("items-catalog");
     } catch (err: any) {
       console.warn("[Register Purchase] Fallback para ítem nuevo:", err);
       finalItemId = `i-new-${Date.now()}`;
@@ -474,4 +475,37 @@ export const registerPurchaseAction = async (
       error: formatDatabaseError(err),
     };
   }
+};
+
+export const registerPurchaseBatchAction = async (
+  inputs: RegisterPurchaseInput[]
+): Promise<
+  Array<{
+    success: boolean;
+    document_number?: string;
+    serial_unit_id?: string;
+    item_id?: string;
+    message?: string;
+    error?: string;
+  }>
+> => {
+  const results = [];
+  let createdItemId: string | undefined;
+
+  for (const input of inputs) {
+    const nextInput: RegisterPurchaseInput = {
+      ...input,
+      item_id: input.item_id || createdItemId,
+      is_new_item: Boolean(input.is_new_item) && !input.item_id && !createdItemId,
+      new_item:
+        input.is_new_item && !input.item_id && !createdItemId ? input.new_item : undefined,
+    };
+    const result = await registerPurchaseAction(nextInput);
+    if (result.success && result.item_id) {
+      createdItemId = result.item_id;
+    }
+    results.push(result);
+  }
+
+  return results;
 };

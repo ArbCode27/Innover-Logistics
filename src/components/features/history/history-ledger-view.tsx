@@ -84,17 +84,20 @@ export const HistoryLedgerView: React.FC<HistoryLedgerViewProps> = ({
     docNumber: string;
   } | null>(null);
 
-  const filteredMovements = initialMovements.filter((m) => {
-    const matchesSearch =
-      m.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.doc_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.location_name.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredMovements = React.useMemo(() => {
+    const query = searchTerm.toLowerCase();
+    return initialMovements.filter((m) => {
+      const matchesSearch =
+        m.item_name.toLowerCase().includes(query) ||
+        m.doc_number.toLowerCase().includes(query) ||
+        m.location_name.toLowerCase().includes(query);
 
-    const matchesType =
-      movementFilter === "all" || m.movement_type === movementFilter;
+      const matchesType =
+        movementFilter === "all" || m.movement_type === movementFilter;
 
-    return matchesSearch && matchesType;
-  });
+      return matchesSearch && matchesType;
+    });
+  }, [initialMovements, searchTerm, movementFilter]);
 
   const handleOpenVoidModal = (docId: string, docNumber: string): void => {
     setSelectedVoidDoc({ docId, docNumber });

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import QRCode from "qrcode";
 import {
   AlertTriangle,
   Camera,
@@ -60,6 +59,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   registerPurchaseAction,
+  registerPurchaseBatchAction,
   checkSerialAndMacDuplicate,
   createOrGetActiveScanSession,
 } from "@/actions/scan";
@@ -373,7 +373,9 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
         setScanUrl(targetUrl);
 
         try {
-          const qrDataUrl = await QRCode.toDataURL(targetUrl, {
+          const qrcode = await import("qrcode");
+          const toDataURL = qrcode.toDataURL ?? qrcode.default.toDataURL;
+          const qrDataUrl = await toDataURL(targetUrl, {
             width: 260,
             margin: 1.5,
             color: { dark: "#0f172a", light: "#ffffff" },
@@ -842,25 +844,61 @@ export const MassiveScanModal: React.FC<MassiveScanModalProps> = ({
     }
 
     const productName = queue[0]?.itemName || currentItem.name;
-    let saved = 0;
-    for (const draft of queue) {
-      const ok = await handleSaveProduct(
-        undefined,
-        {
-          itemId: draft.matchedItemId,
+    setIsSubmitting(true);
+    try {
+      const results = await registerPurchaseBatchAction(
+        queue.map((draft) => ({
+          location_id: selectedLocationId,
+          item_id: draft.matchedItemId,
+          quantity: 1,
+          serial_number: draft.serialNumber,
+          mac_address: draft.macAddress,
+          ticket_ref: ticketRef.trim(),
+          supplier_notes: supplierNotes.trim() || undefined,
+          is_new_item: false,
+        }))
+      );
+
+      const savedSerials = new Set<string>();
+      const savedEntries: RegisteredBatchEntry[] = [];
+      results.forEach((res, index) => {
+        if (!res.success) return;
+        const draft = queue[index];
+        savedSerials.add(draft.serialNumber.toUpperCase());
+        savedEntries.push({
+          id: crypto.randomUUID(),
+          itemName: draft.itemName,
+          sku: draft.sku,
           serialNumber: draft.serialNumber,
           macAddress: draft.macAddress,
-        },
-        { silent: true }
-      );
-      if (ok) saved += 1;
-    }
+          quantity: 1,
+          documentNumber: res.document_number || "COM-AUTO",
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+        });
+      });
 
-    if (saved > 0) {
-      toast.success(`Registradas ${saved} unidades de "${productName}". Cada serial quedó como 1 equipo.`);
+      if (savedEntries.length === 0) {
+        toast.error("No se pudo registrar la hoja de seriales.");
+        return;
+      }
+
+      setRegisteredBatch((prev) => [...savedEntries, ...prev]);
+      setPendingDrafts((prev) =>
+        prev.filter((draft) => !savedSerials.has(draft.serialNumber.toUpperCase()))
+      );
+      toast.success(
+        `Registradas ${savedEntries.length} unidades de "${productName}". Cada serial quedó como 1 equipo.`
+      );
+      onSuccessRegistration?.();
       setActiveRightTab("history");
-    } else {
-      toast.error("No se pudo registrar la hoja de seriales.");
+    } catch (err: any) {
+      toast.error(err?.message || "No se pudo registrar la hoja de seriales.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

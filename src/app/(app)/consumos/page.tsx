@@ -6,14 +6,15 @@ import { DispatchOrdersView } from "@/components/features/consumptions/dispatch-
 
 export default async function ConsumptionsPage() {
   const profile = await getCurrentProfile();
-  const [locations, items, historyDocuments, serializedUnits, technicians] = await Promise.all([
-    getLocations(profile?.branch_id || undefined),
+  const locations = await getLocations(profile?.branch_id || undefined);
+  const serialLocationId = profile?.crew_id || locations[0]?.id;
+  const [items, historyDocuments, serializedUnits, technicians] = await Promise.all([
     getItemsCatalog(),
     getDispatchOrdersHistory(
       profile?.branch_id || undefined,
       profile?.crew_id || undefined
     ),
-    getSerializedUnits(),
+    serialLocationId ? getSerializedUnits(serialLocationId) : Promise.resolve([]),
     getTechnicians({
       branchId: profile?.role === "superadmin" ? undefined : profile?.branch_id || undefined,
       activeOnly: true,

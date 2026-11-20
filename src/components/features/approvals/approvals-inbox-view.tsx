@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
 import {
   CheckCircle2,
   ClipboardList,
@@ -101,18 +100,13 @@ export const ApprovalsInboxView: React.FC<ApprovalsInboxViewProps> = ({
     }
   };
 
-  const renderDocument = (document: DocumentWithDetails, index: number) => {
+  const renderDocument = (document: DocumentWithDetails) => {
     const isOwn = document.created_by === currentUserId;
     const isExit = document.document_type === "consumption";
 
     return (
-      <motion.article
+      <article
         key={document.id}
-        layout
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.22, delay: index * 0.04 }}
         className="space-y-4 rounded-xl border bg-card p-4 shadow-sm"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -222,7 +216,7 @@ export const ApprovalsInboxView: React.FC<ApprovalsInboxViewProps> = ({
             </li>
           ))}
         </ul>
-      </motion.article>
+      </article>
     );
   };
 
@@ -232,21 +226,14 @@ export const ApprovalsInboxView: React.FC<ApprovalsInboxViewProps> = ({
     }
 
     return (
-      <AnimatePresence mode="popLayout">
-        <div className="space-y-3">
-          {rows.map((document, index) => renderDocument(document, index))}
-        </div>
-      </AnimatePresence>
+      <div className="space-y-3">
+        {rows.map((document) => renderDocument(document))}
+      </div>
     );
   };
 
   return (
-    <motion.div
-      className="mx-auto max-w-5xl space-y-6"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
-    >
+    <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         icon={ShieldCheck}
         title={nav.approvals}
@@ -344,6 +331,6 @@ export const ApprovalsInboxView: React.FC<ApprovalsInboxViewProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   );
 };

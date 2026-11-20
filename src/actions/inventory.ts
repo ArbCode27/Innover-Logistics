@@ -1,8 +1,10 @@
 "use server";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/service";
 import { getCurrentProfile } from "@/actions/auth";
 import { formatDatabaseError } from "@/lib/utils";
 import type {
@@ -294,17 +296,40 @@ export const getLocations = cache(async (branchId?: string): Promise<Location[]>
     : FALLBACK_LOCATIONS;
 });
 
-export const getItemsCatalog = cache(async (): Promise<Item[]> => {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
+const ITEM_COLUMNS =
+  "id, sku, name, description, category, unit, is_serialized, min_stock, image_url, is_active, created_at, updated_at";
+
+const readActiveItemsCached = unstable_cache(
+  async (): Promise<Item[]> => {
+    const admin = createAdminClient();
+    const { data, error } = await admin
       .from("items")
-      .select("*")
+      .select(ITEM_COLUMNS)
       .eq("is_active", true)
       .order("name");
-    if (!error && data && data.length > 0) return data as Item[];
+    if (error) throw error;
+    return (data || []) as Item[];
+  },
+  ["active-items-catalog"],
+  { revalidate: 300, tags: ["items-catalog"] }
+);
+
+export const getItemsCatalog = cache(async (): Promise<Item[]> => {
+  try {
+    const cached = await readActiveItemsCached();
+    if (cached.length > 0) return cached;
   } catch {
-    // Return fallback
+    try {
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from("items")
+        .select(ITEM_COLUMNS)
+        .eq("is_active", true)
+        .order("name");
+      if (!error && data && data.length > 0) return data as Item[];
+    } catch {
+      // Return fallback
+    }
   }
   return FALLBACK_ITEMS;
 });
@@ -386,7 +411,11 @@ export const getSerializedUnits = async (
 
   try {
     const supabase = await createClient();
-    let query = supabase.from("serial_units").select("*");
+    let query = supabase
+      .from("serial_units")
+      .select(
+        "id, item_id, serial_number, mac_address, status, current_location_id, last_document_id, created_at, updated_at"
+      );
     if (locationId) {
       query = query.eq("current_location_id", locationId);
     }

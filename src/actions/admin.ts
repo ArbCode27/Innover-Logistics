@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/actions/auth";
 import type { ActionResult } from "@/actions/transfers";
@@ -93,6 +93,7 @@ export const createItemAction = async (data: {
     if (!error && item) {
       revalidatePath("/admin");
       revalidatePath("/inventario");
+      revalidateTag("items-catalog");
       return { success: true, data: { id: item.id } };
     }
   } catch {
@@ -146,6 +147,7 @@ export const updateItemAction = async (data: {
 
     revalidatePath("/admin");
     revalidatePath("/inventario");
+    revalidateTag("items-catalog");
     return { success: true };
   } catch {
     return {

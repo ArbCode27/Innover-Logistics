@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -35,6 +34,7 @@ import {
   type DispatchOrderInput,
 } from "@/lib/validators/dispatch-order";
 import { createDispatchOrderAction } from "@/actions/dispatch-orders";
+import { getSerializedUnits } from "@/actions/inventory";
 import { exportDeliveryNotesToExcel } from "@/lib/export-excel";
 import { buttons } from "@/lib/glossary";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -200,6 +200,22 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
   const selectedWorkType = watch("work_type");
   const selectedLocation = watch("location_id");
+  const [locationSerials, setLocationSerials] =
+    React.useState<SerializedItemWithDetails[]>(serializedUnits);
+  const serialLocationRef = React.useRef(initialLocationId);
+
+  React.useEffect(() => {
+    if (!selectedLocation || selectedLocation === serialLocationRef.current) return;
+    let cancelled = false;
+    void getSerializedUnits(selectedLocation).then((rows) => {
+      if (cancelled) return;
+      serialLocationRef.current = selectedLocation;
+      setLocationSerials(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedLocation]);
   const selectedTechnicianId = watch("assigned_technician_id");
   const canIssue = userRole === "superadmin" || userRole === "admin_sucursal";
 
@@ -225,12 +241,12 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
   // Filtro de seriales disponibles para la ubicación seleccionada
   const availableSerialsForLocation = React.useMemo(() => {
-    return serializedUnits.filter(
+    return locationSerials.filter(
       (unit) =>
         unit.current_location_id === selectedLocation &&
         (unit.status === "in_stock" || unit.status === "assigned_crew")
     );
-  }, [serializedUnits, selectedLocation]);
+  }, [locationSerials, selectedLocation]);
 
   // Aplicar un kit de materiales al formulario
   const handleApplyKit = (kitId: string) => {
@@ -330,12 +346,12 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
     });
   }, [historyDocuments, filterWorkType, filterSearch]);
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredHistory.length === 0) {
       toast.warning("No hay notas de entrega para exportar con los filtros seleccionados");
       return;
     }
-    exportDeliveryNotesToExcel(filteredHistory, "Notas_de_Entrega_Innover");
+    await exportDeliveryNotesToExcel(filteredHistory, "Notas_de_Entrega_Innover");
     toast.success("Reporte Excel descargado con éxito");
   };
 
@@ -381,7 +397,9 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportExcel}
+              onClick={() => {
+                void handleExportExcel();
+              }}
               className="gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 min-h-[40px]"
             >
               <FileSpreadsheet className="h-4 w-4" />
@@ -546,12 +564,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
 
               {/* FILA 3: RESPONSABLE / TÉCNICO & DESTINATARIO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <motion.div
-                  className="space-y-2"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22 }}
-                >
+                <div className="space-y-2">
                   <Label htmlFor="assigned_technician_id" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
                     Técnico que recibe el material <span className="text-destructive">*</span>
                   </Label>
@@ -587,7 +600,7 @@ export const DispatchOrdersView: React.FC<DispatchOrdersViewProps> = ({
                   {errors.assigned_technician_id && (
                     <p className="text-xs text-destructive">{errors.assigned_technician_id.message}</p>
                   )}
-                </motion.div>
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="receiver_mode" className="text-xs font-bold tracking-wider uppercase text-muted-foreground">

@@ -1,18 +1,25 @@
+import { Suspense } from "react";
 import { getCurrentProfile } from "@/actions/auth";
 import {
+  getBranches,
   getInventoryStock,
+  getItemsCatalog,
   getLocations,
   getSerializedUnits,
 } from "@/actions/inventory";
+import { InventoryTableSkeleton } from "@/components/features/inventory/design-system/inventory-skeleton";
 import { InventoryView } from "@/components/features/inventory/inventory-view";
 
 interface InventoryPageProps {
   searchParams: Promise<{ buscar?: string }>;
 }
 
-export default async function InventoryPage({ searchParams }: InventoryPageProps) {
+const InventoryPageContent = async ({ searchParams }: InventoryPageProps) => {
   const params = await searchParams;
-  const profile = await getCurrentProfile();
+  const profilePromise = getCurrentProfile();
+  const branchesPromise = getBranches();
+  const catalogPromise = getItemsCatalog();
+  const profile = await profilePromise;
   const locations = await getLocations(profile?.branch_id || undefined);
   const currentLocationId =
     profile?.crew_id ||
@@ -21,7 +28,9 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
 
   const [initialStock, serializedUnits] = await Promise.all([
     getInventoryStock(currentLocationId),
-    getSerializedUnits(),
+    getSerializedUnits(currentLocationId),
+    branchesPromise,
+    catalogPromise,
   ]);
 
   return (
@@ -33,5 +42,13 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
       currentLocationId={currentLocationId}
       initialQuery={params.buscar || ""}
     />
+  );
+};
+
+export default function InventoryPage({ searchParams }: InventoryPageProps) {
+  return (
+    <Suspense fallback={<InventoryTableSkeleton />}>
+      <InventoryPageContent searchParams={searchParams} />
+    </Suspense>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -15,6 +16,7 @@ import {
   PlusCircle,
   Search,
   SlidersHorizontal,
+  ShoppingCart,
   Wrench,
 } from "lucide-react";
 
@@ -52,22 +54,28 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatNumber } from "@/lib/utils";
-import { getInventoryStock } from "@/actions/inventory";
+import { getInventoryStock, getSerializedUnits } from "@/actions/inventory";
 import { buttons, explainError, hints, nav, terms } from "@/lib/glossary";
 import { usePagedList } from "@/lib/use-paged-list";
 import { PageHeader } from "@/components/shared/page-header";
 import { ListPager } from "@/components/shared/list-pager";
 import { EmptyState } from "@/components/features/inventory/design-system/empty-state";
 import { InventoryTableSkeleton } from "@/components/features/inventory/design-system/inventory-skeleton";
-import { MassiveScanModal } from "@/components/features/inventory/massive-scan-modal";
 import { LocalPurchaseModal } from "@/components/features/inventory/local-purchase-modal";
-import { ShoppingCart } from "lucide-react";
 import type {
   Location,
   SerializedItemWithDetails,
   StockItemWithBalance,
   UserRole,
 } from "@/types/inventory";
+
+const MassiveScanModal = dynamic(
+  () =>
+    import("@/components/features/inventory/massive-scan-modal").then(
+      (mod) => mod.MassiveScanModal
+    ),
+  { ssr: false }
+);
 
 interface InventoryViewProps {
   initialStock: StockItemWithBalance[];
@@ -89,6 +97,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const router = useRouter();
 
   const [stock, setStock] = React.useState<StockItemWithBalance[]>(initialStock);
+  const [serials, setSerials] =
+    React.useState<SerializedItemWithDetails[]>(serializedUnits);
+  const [scanMounted, setScanMounted] = React.useState(false);
   const [isLoadingStock, setIsLoadingStock] = React.useState(false);
   const [selectedLocation, setSelectedLocation] =
     React.useState<string>(currentLocationId);
@@ -114,6 +125,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   }, [initialStock]);
 
   React.useEffect(() => {
+    setSerials(serializedUnits);
+  }, [serializedUnits]);
+
+  React.useEffect(() => {
     setSearchTerm(initialQuery);
   }, [initialQuery]);
 
@@ -121,8 +136,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setSelectedLocation(locationId);
     setIsLoadingStock(true);
     try {
-      const nextStock = await getInventoryStock(locationId);
+      const [nextStock, nextSerials] = await Promise.all([
+        getInventoryStock(locationId),
+        getSerializedUnits(locationId),
+      ]);
       setStock(nextStock);
+      setSerials(nextSerials);
     } catch {
       toast.error(explainError("cargar el almacén"), {
         description: hints.connection,
@@ -204,22 +223,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const currentItemSerials = React.useMemo(() => {
     if (!activeSerialItem) return [];
-    return serializedUnits.filter(
+    return serials.filter(
       (unit) =>
         unit.item_id === activeSerialItem.id &&
         unit.current_location_id === selectedLocation
     );
-  }, [activeSerialItem, serializedUnits, selectedLocation]);
+  }, [activeSerialItem, serials, selectedLocation]);
 
   // Open scan modal for specific item
   const handleOpenScanForItem = (itemId: string): void => {
     setPreselectedItemId(itemId);
+    setScanMounted(true);
     setIsMassiveScanOpen(true);
   };
 
-  // Open scan modal generic
   const handleOpenGenericScan = (): void => {
     setPreselectedItemId(null);
+    setScanMounted(true);
     setIsMassiveScanOpen(true);
   };
 
@@ -690,19 +710,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Massive Ingestion with Camera Modal */}
-      <MassiveScanModal
-        open={isMassiveScanOpen}
-        onOpenChange={setIsMassiveScanOpen}
-        items={initialStock}
-        locations={locations}
-        defaultLocationId={selectedLocation}
-        userRole={userRole}
-        preselectedItemId={preselectedItemId}
-        onSuccessRegistration={() => {
-          router.refresh();
-        }}
-      />
+      {scanMounted ? (
+        <MassiveScanModal
+          open={isMassiveScanOpen}
+          onOpenChange={setIsMassiveScanOpen}
+          items={initialStock}
+          locations={locations}
+          defaultLocationId={selectedLocation}
+          userRole={userRole}
+          preselectedItemId={preselectedItemId}
+          onSuccessRegistration={() => {
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       {/* Local Purchase Modal for Direct Supplier Ingestion */}
       <LocalPurchaseModal

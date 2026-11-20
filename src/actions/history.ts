@@ -25,7 +25,13 @@ export const getMovementsLedger = async (
       .from("stock_movements")
       .select(
         `
-        *,
+        id,
+        document_id,
+        item_id,
+        location_id,
+        quantity,
+        movement_type,
+        created_at,
         item:items(name, sku, unit),
         location:locations(name),
         document:documents(document_number),

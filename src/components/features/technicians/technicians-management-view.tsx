@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { Loader2, Pencil, Phone, Plus, UserRound, UserX } from "lucide-react";
 import { toast } from "sonner";
 
@@ -164,12 +163,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
   };
 
   return (
-    <motion.div
-      className="mx-auto max-w-6xl space-y-6"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
-    >
+    <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         icon={UserRound}
         title={nav.technicians}
@@ -223,14 +217,8 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pager.rows.map((technician, index) => (
-                <motion.tr
-                  key={technician.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.03 }}
-                  className="border-b transition-colors hover:bg-muted/40"
-                >
+              {pager.rows.map((technician) => (
+                <TableRow key={technician.id}>
                   <TableCell className="font-medium">{technician.full_name}</TableCell>
                   <TableCell className="font-mono text-xs">{technician.document_id}</TableCell>
                   <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
@@ -277,7 +265,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                       </Button>
                     </div>
                   </TableCell>
-                </motion.tr>
+                </TableRow>
               ))}
             </TableBody>
           </Table>
@@ -402,6 +390,6 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   );
 };
